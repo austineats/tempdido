@@ -1,0 +1,2 @@
+/api/* https://solaris-gourmet-grill-simpson.trycloudflare.com/api/:splat 200
+/* /index.html 200
