@@ -19,6 +19,7 @@ import { blindDateRouter } from "./routes/blindDate.js";
 import { bublRouter } from "./routes/bublProfiles.js";
 import { partyRouter } from "./routes/party.js";
 import { instagramWebhookRouter } from "./routes/instagramWebhook.js";
+import { adminRouter } from "./routes/admin.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
@@ -45,6 +46,7 @@ app.use("/api/blind-date", blindDateRouter);
 app.use("/api/bubl", bublRouter);
 app.use("/api/party", partyRouter);
 app.use("/api/webhook/instagram", instagramWebhookRouter);
+app.use("/api/admin", adminRouter);
 
 // Serve frontend static files
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

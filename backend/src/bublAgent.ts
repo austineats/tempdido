@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 import { prisma } from "./lib/db.js";
+
+const SITE_URL = process.env.SITE_URL || "ara-malarial-poisedly.ngrok-free.dev";
 import {
   sendText,
   sendTypingOn,
@@ -175,48 +177,51 @@ function buildSystemPrompt(
     context += `\nNot signed up yet.`;
     if (igName) context += ` Their Instagram display name is "${igName}".`;
     if (igUsername) context += ` Their Instagram username is @${igUsername}.`;
-    context += ` Sign up at ara-malarial-poisedly.ngrok-free.dev`;
+    context += ` Sign up at ${SITE_URL}`;
   }
 
-  const SIGNUP_LINK = "ara-malarial-poisedly.ngrok-free.dev/signup";
+  const SIGNUP_LINK = `${SITE_URL}/signup`;
 
-  return `You are Ditto — you set up double dates through Instagram DMs. You pair two duos together every Wednesday at UCR.
+  return `You are Ditto. you run doubles — a 2v2 blind date thing at UCR. you match duos every wednesday thru instagram dms.
 
-YOUR PERSONALITY:
-- You're a real person, not a bot. Witty, warm, a little unhinged in a fun way
-- lowercase always. short punchy texts. like texting ur friend
-- Use slang naturally — "fr", "ngl", "lowkey", "tho", "bet", "no cap" — but don't overdo it
-- Match their energy exactly. Chill = chill. Hype = hype. Unhinged = play along
-- Emojis sparingly — max 1 per message, skip most of the time
-- NEVER say you're AI/a bot. You ARE Ditto. If asked, deflect — "bro i literally just set up dates lol"
-- You CAN see their Instagram name and username (it's in the context below). Use it naturally if they ask
-- If they say something random/off-topic, play along for a beat then redirect back
+VIBE:
+- you text like a college student. lowercase everything. no periods
+- you're that friend who's always tryna set people up. funny, a lil chaotic, lowkey unhinged
+- use slang NATURALLY not forced — "fr" "ngl" "lowkey" "bet" "tho" "fs" "ong" "is crazy" "I see you"
+- emojis: only 😭 and 👀 occasionally. never 🎯🔥🔒💯 those are corporate
+- if they ask random shit (math, cooking, life advice) ACTUALLY engage with it in a funny way before redirecting. dont dodge their question
+- example: them: "whats 3+8" you: "11 but the real math is u + finishing signup = actually getting matched fr"
+- NEVER sound like a bot. NEVER sound like marketing. no "lock in" no "let's get you matched" no "finalize"
+- you ARE ditto. if asked say "bro i literally just set up dates lol"
 
-RESPONSE FORMAT:
-- Reply in EXACTLY 2 SHORT messages (split with |||)
-- First message: react to what they said, match their vibe, answer their question
-- Second message: redirect to signup link if not signed up, or next action if signed up
-- Example: "ngl that's actually a solid question|||sign up with a friend and i'll match your duo every wednesday — lock in: ${SIGNUP_LINK}"
-- ALWAYS include ${SIGNUP_LINK} in the second message if they haven't signed up
-- Each message = 1-2 sentences MAX. Rapid-fire DMs, not paragraphs
-- NEVER send 3 messages. Always exactly 2.
+FORMAT:
+- EXACTLY 2 messages split by |||
+- first msg: actually react to what they said. be witty. make it personal
+- second msg: redirect to next step but make it feel natural, not copy-pasted
+- NEVER use the same redirect phrasing twice. here are examples of different ways to redirect:
+  "do it real quick here tho ${SIGNUP_LINK}"
+  "stop playing and sign up ${SIGNUP_LINK}"
+  "but fr tho fill this out first ${SIGNUP_LINK}"
+  "handle this real quick n ur good ${SIGNUP_LINK}"
+  "anyway sign up w a friend here ${SIGNUP_LINK}"
+- each msg = 1-2 SHORT sentences max. like an actual imessage text
+- NEVER 3+ messages
 
-HOW x2/DITTO WORKS:
-- You and a friend sign up as a duo at ${SIGNUP_LINK}
-- Every Wednesday, Ditto matches your duo with another duo
-- 2v2 double date — less awkward, more fun
-- All through Instagram DMs. No app
-- Currently at UCR, expanding campus by campus
+WHAT DOUBLES IS:
+- u + a friend = duo. ditto matches ur duo w another duo every wednesday
+- 2v2 double date. less awkward more fun
+- all thru ig dms no app
+- ${SIGNUP_LINK}
 
-RIGHT NOW: ${dayOfWeek} ${timeOfDay}
+${dayOfWeek} ${timeOfDay}
 ${context}
 
-IMPORTANT RULES:
-- If not signed up, EVERY reply must include ${SIGNUP_LINK}
-- Answer their question FIRST, then redirect. Don't dodge
-- Don't repeat the same phrasing from previous messages — switch it up
-- Keep it light. Never lecture. Never be preachy
-- Late night = shorter, chiller. Daytime = more energy`;
+CRITICAL RULES:
+- if not signed up, second msg MUST include ${SIGNUP_LINK} but phrase it differently EVERY time
+- look at ur previous messages in the convo and NEVER reuse the same phrasing
+- actually be funny. if they say something random, play along THEN redirect
+- dont be cringe dont be corporate dont lecture dont be repetitive
+- late night = shorter chiller. daytime = more energy`;
 }
 
 // ─── Generate reply via LLM ───
@@ -347,11 +352,44 @@ async function processMessages(senderId: string) {
         where: { phone: `signup_${code}` },
       });
       if (pending) {
+        const originalPhone = pending.phone; // "signup_CODE" before we overwrite it
+        // Link IG id to profile
         await prisma.bublProfile.update({
           where: { id: pending.id },
           data: { phone: senderId, ig_id: senderId },
         });
         const signupName = pending.name.split(" ")[0];
+
+        // Check if they're already on a team as player2 (User B via duo_code)
+        const existingTeam = await prisma.blindDateTeam.findFirst({
+          where: { player2_phone: originalPhone },
+          orderBy: { created_at: "desc" },
+        }).catch(() => null);
+
+        if (existingTeam) {
+          // User B — link ig_id and notify User A
+          await prisma.blindDateTeam.update({
+            where: { id: existingTeam.id },
+            data: { player2_ig_id: senderId, player2_ready: true },
+          });
+          const inviterName = existingTeam.player1_name.split(" ")[0];
+          const partyLink = `${SITE_URL}/party/${existingTeam.code}`;
+          const replies = [
+            `${signupName} u n ${inviterName} are locked in`,
+            `your lobby: ${partyLink}`,
+          ];
+          await sendReplies(senderId, replies);
+          // Notify User A
+          if (existingTeam.player1_ig_id) {
+            await sendText(existingTeam.player1_ig_id, `yo ${signupName} just joined ur duo ${partyLink}`);
+          }
+          await saveMessage(senderId, "user", combinedText || "signed up via ref");
+          await saveMessage(senderId, "assistant", replies.join("\n"));
+          logActivity("duo_joined_ref", signupName, senderId, `team=${existingTeam.code}`);
+          return;
+        }
+
+        // User A — create new team
         const teamCode = Math.random().toString(36).substring(2, 8).toUpperCase();
         try {
           await prisma.blindDateTeam.create({
@@ -366,10 +404,12 @@ async function processMessages(senderId: string) {
             },
           });
         } catch { /* */ }
-        const inviteLink = `ara-malarial-poisedly.ngrok-free.dev/party/${teamCode}`;
+        const inviteLink = `${SITE_URL}/signup?duo=${teamCode}`;
+        const partyLink = `${SITE_URL}/party/${teamCode}`;
         const replies = [
-          `${signupName} you're locked in 🔥`,
-          `forward this to your friend so they can join your duo: ${inviteLink}`,
+          `${signupName} ur in`,
+          `forward this to your duo — they just tap it and say hey: https://ig.me/m/ditto.test?ref=invite_${teamCode}`,
+          `your lobby: ${partyLink}`,
         ];
         await sendReplies(senderId, replies);
         await saveMessage(senderId, "user", combinedText || "signed up via ref");
@@ -382,14 +422,26 @@ async function processMessages(senderId: string) {
     }
   }
 
-  // ── Ref link flow: new user coming from a duo invite ──
-  if (ref && !user) {
-    const refTeam = await lookupTeamByRef(ref);
+  // ── Ref link flow: new user coming from a duo invite (invite_XXX or join_XXX) ──
+  const inviteMatch = ref?.match(/^(?:invite_|join_)(.+)$/);
+  if (inviteMatch && !user) {
+    const teamCode = inviteMatch[1];
+    const refTeam = await lookupTeamByRef(teamCode);
     const inviterName = refTeam?.player1_name?.split(" ")[0] || "your friend";
-    const signupLink = `ara-malarial-poisedly.ngrok-free.dev/signup?duo=${ref}`;
+
+    // Pre-save User B's ig_id on the team so it's linked before they fill the form
+    if (refTeam && !refTeam.player2_ig_id) {
+      await prisma.blindDateTeam.update({
+        where: { id: refTeam.id },
+        data: { player2_ig_id: senderId },
+      }).catch(() => {});
+      console.log(`[ditto] Pre-linked User B ig_id ${senderId} on team ${teamCode}`);
+    }
+
+    const signupLink = `${SITE_URL}/signup?duo=${teamCode}`;
     const replies = [
-      `yooo ${inviterName} invited you to be their duo partner`,
-      `sign up here and you two are locked in for this week's match`,
+      `yoo ${inviterName} wants u as their duo`,
+      `fill this out n yall are set for wednesday`,
       signupLink,
     ];
     await sendReplies(senderId, replies);
@@ -408,19 +460,48 @@ async function processMessages(senderId: string) {
         where: { phone: `signup_${code}` },
       });
       if (pending) {
+        const originalPhone = pending.phone; // "signup_CODE" before overwrite
         // Link profile to this IG user
         await prisma.bublProfile.update({
           where: { id: pending.id },
           data: {
-            phone: senderId, // use IG ID as identifier
+            phone: senderId,
             ig_id: senderId,
           },
         });
 
         const signupName = pending.name.split(" ")[0];
-        const teamCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-        // Create a team for them
+        // Check if they're already on a team as player2 (User B via duo_code)
+        const existingTeam = await prisma.blindDateTeam.findFirst({
+          where: { player2_phone: originalPhone },
+          orderBy: { created_at: "desc" },
+        }).catch(() => null);
+
+        if (existingTeam) {
+          // User B — link ig_id and notify User A
+          await prisma.blindDateTeam.update({
+            where: { id: existingTeam.id },
+            data: { player2_ig_id: senderId, player2_ready: true },
+          });
+          const inviterName = existingTeam.player1_name.split(" ")[0];
+          const partyLink = `${SITE_URL}/party/${existingTeam.code}`;
+          const replies = [
+            `${signupName} u n ${inviterName} are locked in`,
+            `your lobby: ${partyLink}`,
+          ];
+          await sendReplies(senderId, replies);
+          if (existingTeam.player1_ig_id) {
+            await sendText(existingTeam.player1_ig_id, `yo ${signupName} just joined ur duo ${partyLink}`);
+          }
+          await saveMessage(senderId, "user", combinedText);
+          await saveMessage(senderId, "assistant", replies.join("\n"));
+          logActivity("duo_joined_code", signupName, senderId, `team=${existingTeam.code}`);
+          return;
+        }
+
+        // User A — create new team
+        const teamCode = Math.random().toString(36).substring(2, 8).toUpperCase();
         try {
           await prisma.blindDateTeam.create({
             data: {
@@ -433,12 +514,14 @@ async function processMessages(senderId: string) {
               status: "waiting",
             },
           });
-        } catch { /* table might not exist yet */ }
+        } catch { /* */ }
 
-        const inviteLink = `ara-malarial-poisedly.ngrok-free.dev/party/${teamCode}`;
+        const inviteLink = `${SITE_URL}/signup?duo=${teamCode}`;
+        const partyLink = `${SITE_URL}/party/${teamCode}`;
         const replies = [
-          `${signupName} you're locked in 🔥`,
-          `now forward this to your friend so they can join your duo: ${inviteLink}`,
+          `${signupName} ur in`,
+          `forward this to your duo — they just tap it and say hey: https://ig.me/m/ditto.test?ref=invite_${teamCode}`,
+          `your lobby: ${partyLink}`,
         ];
         await sendReplies(senderId, replies);
         await saveMessage(senderId, "user", combinedText);
@@ -451,13 +534,237 @@ async function processMessages(senderId: string) {
     }
   }
 
-  // ── "I'm done" / "I signed up" flow — ask for code ──
   const lower = combinedText.toLowerCase();
-  const isDoneMsg = lower.includes("done") || lower.includes("signed up") || lower.includes("finished") || lower.includes("completed") || lower.includes("filled") || lower.includes("form");
+
+  // ── Auto-match: new user with no ref — try to find their pending signup ──
+  if (!ref && !user) {
+    try {
+      const pending = await prisma.bublProfile.findFirst({
+        where: {
+          phone: { startsWith: "signup_" },
+          ig_id: null,
+        },
+        orderBy: { created_at: "desc" },
+      });
+      if (pending && (Date.now() - pending.created_at.getTime()) < 30 * 60 * 1000) {
+        // Found a recent pending signup — auto-link it
+        const originalPhone = pending.phone;
+        await prisma.bublProfile.update({
+          where: { id: pending.id },
+          data: { phone: senderId, ig_id: senderId },
+        });
+        const signupName = pending.name.split(" ")[0];
+        console.log(`[ditto] Auto-matched ${signupName} (${originalPhone}) to ${senderId}`);
+
+        // Check if User B (already on a team via duo_code)
+        const existingTeam = await prisma.blindDateTeam.findFirst({
+          where: { player2_phone: originalPhone },
+          orderBy: { created_at: "desc" },
+        }).catch(() => null);
+
+        if (existingTeam) {
+          await prisma.blindDateTeam.update({
+            where: { id: existingTeam.id },
+            data: { player2_ig_id: senderId, player2_ready: true },
+          });
+          const inviterName = existingTeam.player1_name.split(" ")[0];
+          const partyLink = `${SITE_URL}/party/${existingTeam.code}`;
+          const replies = [
+            `${signupName} u n ${inviterName} are locked in`,
+            `your lobby: ${partyLink}`,
+          ];
+          await sendReplies(senderId, replies);
+          if (existingTeam.player1_ig_id) {
+            await sendText(existingTeam.player1_ig_id, `yo ${signupName} just joined ur duo ${partyLink}`);
+          }
+          await saveMessage(senderId, "user", combinedText);
+          await saveMessage(senderId, "assistant", replies.join("\n"));
+          logActivity("auto_match_duo", signupName, senderId, `team=${existingTeam.code}`);
+          return;
+        }
+
+        // User A — create team
+        const teamCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        try {
+          await prisma.blindDateTeam.create({
+            data: {
+              code: teamCode,
+              player1_name: pending.name,
+              player1_phone: senderId,
+              player1_gender: pending.gender || "unknown",
+              player1_ig_id: senderId,
+              player1_ready: true,
+              status: "waiting",
+            },
+          });
+        } catch { /* */ }
+        const inviteLink = `${SITE_URL}/signup?duo=${teamCode}`;
+        const partyLink = `${SITE_URL}/party/${teamCode}`;
+        const replies = [
+          `${signupName} ur in`,
+          `forward this to your duo — they just tap it and say hey: https://ig.me/m/ditto.test?ref=invite_${teamCode}`,
+          `your lobby: ${partyLink}`,
+        ];
+        await sendReplies(senderId, replies);
+        await saveMessage(senderId, "user", combinedText);
+        await saveMessage(senderId, "assistant", replies.join("\n"));
+        logActivity("auto_match_signup", signupName, senderId, `team=${teamCode}`);
+        return;
+      }
+    } catch (e) {
+      console.warn("[ditto] Auto-match failed:", e instanceof Error ? e.message : e);
+    }
+  }
+
+  // ── First-time user with no profile and no ref: welcome menu ──
+  const history = await loadHistory(senderId);
+  if (history.length === 0 && !ref && !user) {
+    await sendTypingOn(senderId);
+    await sleep(800);
+    await sendText(senderId, `yoo welcome to doubles`);
+    await sleep(600);
+    await sendText(senderId, `wyd here\n\n1️⃣ sign me up\n2️⃣ i got a code\n3️⃣ wait what is this`);
+    await saveMessage(senderId, "user", combinedText);
+    await saveMessage(senderId, "assistant", "welcome + menu sent");
+    logActivity("welcome", firstName || undefined, senderId, "First DM, sent menu");
+    return;
+  }
+
+  // ── Menu responses: 1 = sign up, 2 = have a code, 3 = what is doubles ──
+  // Also handles ice breaker payloads (ICE_SIGNUP, ICE_CODE, ICE_INFO)
+  if ((lower === "1" || lower.includes("sign me up") || combinedText === "ICE_SIGNUP") && !user) {
+    const replies = [
+      `bet lets get u in`,
+      `${SITE_URL}/signup`,
+    ];
+    await sendReplies(senderId, replies);
+    await saveMessage(senderId, "user", combinedText);
+    await saveMessage(senderId, "assistant", replies.join("\n"));
+    logActivity("menu_signup", firstName || undefined, senderId);
+    return;
+  }
+
+  if ((lower === "2" || lower.includes("i have a code") || lower.includes("have a code") || combinedText === "ICE_CODE") && !user) {
+    const replies = [
+      `drop ur code from the signup page n ill lock u in`,
+    ];
+    await sendReplies(senderId, replies);
+    await saveMessage(senderId, "user", combinedText);
+    await saveMessage(senderId, "assistant", replies.join("\n"));
+    logActivity("menu_code", firstName || undefined, senderId);
+    return;
+  }
+
+  if ((lower === "3" || lower.includes("what is doubles") || lower.includes("what is this") || combinedText === "ICE_INFO") && !user) {
+    const replies = [
+      `so basically u + a friend sign up as a duo and we match u with another duo every wednesday. 2v2 blind date`,
+      `no app or anything its all thru ig dms. wanna get in? ${SITE_URL}/signup`,
+    ];
+    await sendReplies(senderId, replies);
+    await saveMessage(senderId, "user", combinedText);
+    await saveMessage(senderId, "assistant", replies.join("\n"));
+    logActivity("menu_info", firstName || undefined, senderId);
+    return;
+  }
+
+  // ── "I'm done" / "I signed up" flow — ask for code ──
+  const isDoneMsg = lower.includes("done") || lower.includes("signed up") || lower.includes("finished") || lower.includes("completed") || lower.includes("filled") || lower.includes("form") || lower.includes("last step") || lower.includes("hey") || lower.includes("hi ditto");
+
+  // User finished the form but not linked yet — try auto-match
   if (isDoneMsg && !user) {
+    // Try auto-match one more time
+    try {
+      const pending = await prisma.bublProfile.findFirst({
+        where: { phone: { startsWith: "signup_" }, ig_id: null },
+        orderBy: { created_at: "desc" },
+      });
+      if (pending) {
+        const originalPhone = pending.phone;
+        await prisma.bublProfile.update({
+          where: { id: pending.id },
+          data: { phone: senderId, ig_id: senderId },
+        });
+        const signupName = pending.name.split(" ")[0];
+
+        const existingTeam = await prisma.blindDateTeam.findFirst({
+          where: { player2_phone: originalPhone },
+          orderBy: { created_at: "desc" },
+        }).catch(() => null);
+
+        if (existingTeam) {
+          await prisma.blindDateTeam.update({
+            where: { id: existingTeam.id },
+            data: { player2_ig_id: senderId, player2_ready: true },
+          });
+          const inviterName = existingTeam.player1_name.split(" ")[0];
+          const partyLink = `${SITE_URL}/party/${existingTeam.code}`;
+          const replies = [`${signupName} u n ${inviterName} are locked in`, `your lobby: ${partyLink}`];
+          await sendReplies(senderId, replies);
+          if (existingTeam.player1_ig_id) {
+            await sendText(existingTeam.player1_ig_id, `yo ${signupName} just joined ur duo ${partyLink}`);
+          }
+          await saveMessage(senderId, "user", combinedText);
+          await saveMessage(senderId, "assistant", replies.join("\n"));
+          logActivity("done_msg_duo", signupName, senderId, `team=${existingTeam.code}`);
+          return;
+        }
+
+        const teamCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        try {
+          await prisma.blindDateTeam.create({
+            data: { code: teamCode, player1_name: pending.name, player1_phone: senderId, player1_gender: pending.gender || "unknown", player1_ig_id: senderId, player1_ready: true, status: "waiting" },
+          });
+        } catch { /* */ }
+        const partyLink = `${SITE_URL}/party/${teamCode}`;
+        const replies = [
+          `${signupName} ur in`,
+          `forward this to your duo — they just tap it and say hey: https://ig.me/m/ditto.test?ref=invite_${teamCode}`,
+          `your lobby: ${partyLink}`,
+        ];
+        await sendReplies(senderId, replies);
+        await saveMessage(senderId, "user", combinedText);
+        await saveMessage(senderId, "assistant", replies.join("\n"));
+        logActivity("done_msg_signup", signupName, senderId, `team=${teamCode}`);
+        return;
+      }
+    } catch { /* */ }
+
     const replies = [
       `${firstName || "yo"} nice! send me the 6-letter code from the signup page and i'll lock you in`,
     ];
+    await sendReplies(senderId, replies);
+    await saveMessage(senderId, "user", combinedText);
+    await saveMessage(senderId, "assistant", replies.join("\n"));
+    return;
+  }
+
+  // User already linked + says done — check if they have a team
+  if (isDoneMsg && user && !team) {
+    // Create team for them
+    const signupName = firstName || "yo";
+    const teamCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    try {
+      await prisma.blindDateTeam.create({
+        data: { code: teamCode, player1_name: user.name, player1_phone: senderId, player1_gender: user.gender || "unknown", player1_ig_id: senderId, player1_ready: true, status: "waiting" },
+      });
+    } catch { /* */ }
+    const partyLink = `${SITE_URL}/party/${teamCode}`;
+    const replies = [
+      `${signupName} ur in`,
+      `forward this to your duo — they just tap it and say hey: https://ig.me/m/ditto.test?ref=invite_${teamCode}`,
+      `your lobby: ${partyLink}`,
+    ];
+    await sendReplies(senderId, replies);
+    await saveMessage(senderId, "user", combinedText);
+    await saveMessage(senderId, "assistant", replies.join("\n"));
+    logActivity("done_msg_create_team", signupName, senderId, `team=${teamCode}`);
+    return;
+  }
+
+  // User already linked + has team — send them their lobby
+  if (isDoneMsg && user && team) {
+    const partyLink = `${SITE_URL}/party/${team.code}`;
+    const replies = [`u already in lol heres ur lobby: ${partyLink}`];
     await sendReplies(senderId, replies);
     await saveMessage(senderId, "user", combinedText);
     await saveMessage(senderId, "assistant", replies.join("\n"));
@@ -471,7 +778,7 @@ async function processMessages(senderId: string) {
     logActivity("ready_up", firstName || undefined, senderId, `Team: ${team?.code || "none"}`);
 
     const name = firstName || "yo";
-    const lobbyLink = team ? `ara-malarial-poisedly.ngrok-free.dev/lobby/${team.code}` : "ara-malarial-poisedly.ngrok-free.dev";
+    const lobbyLink = team ? `${SITE_URL}/party/${team.code}` : SITE_URL;
     const replies = [
       `${name} lets go you're locked in`,
       `now get your duo partner to sign up too so you're matched this wednesday`,

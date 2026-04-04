@@ -159,7 +159,7 @@ export async function getUserProfile(
   userId: string,
 ): Promise<{ name?: string; profile_pic?: string; username?: string }> {
   return callApi(
-    `/${userId}?fields=name,profile_pic,username`,
+    `/${userId}?fields=name,username`,
     "GET",
   ) as Promise<{ name?: string; profile_pic?: string; username?: string }>;
 }

@@ -1,473 +1,239 @@
 import { useState, useEffect } from "react";
-import { Search, X } from "lucide-react";
 
-interface Signup {
-  id: string;
-  name: string;
-  phone: string;
-  age?: string;
-  gender?: string;
-  looking_for?: string;
-  hobbies: string[];
-  status: string;
-  school_id_url?: string;
-  signup_ip?: string;
-  user_agent?: string;
-  referrer?: string;
-  created_at: string;
+const API = import.meta.env.VITE_API_URL || "";
+
+type Stats = { totalProfiles: number; totalTeams: number; fullTeams: number; totalMessages: number; recentMessages: number };
+type Profile = { id: string; name: string; email?: string; phone?: string; ig_id?: string; gender?: string; school?: string; created_at: string };
+type Team = { id: string; code: string; player1_name: string; player1_ig_id?: string; player1_ready: boolean; player2_name?: string; player2_ig_id?: string; player2_ready: boolean; status: string; created_at: string };
+type Message = { id: string; phone: string; ig_id?: string; role: string; content: string; created_at: string };
+type Conversation = { userId: string; messages: Message[]; lastActivity: string };
+
+function apiFetch(path: string, token: string) {
+  return fetch(`${API}/api/admin${path}`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json());
 }
 
-interface Team {
-  id: string;
-  code: string;
-  player1_name: string;
-  player1_phone: string;
-  player1_gender: string;
-  player1_ready: boolean;
-  player2_name: string | null;
-  player2_phone: string | null;
-  player2_gender: string | null;
-  player2_ready: boolean;
-  status: string;
-  created_at: string;
-}
-
-interface Activity {
-  id: string;
-  action: string;
-  actor_name: string | null;
-  actor_phone: string | null;
-  details: string | null;
-  created_at: string;
-}
-
-interface Visit {
-  id: string;
-  event: string;
-  path: string | null;
-  referrer: string | null;
-  user_agent: string | null;
-  ip: string | null;
-  created_at: string;
-}
-
-const ADMIN_PASS = "bubl2026";
-const px = { fontFamily: "'Press Start 2P', monospace" } as const;
-
-const ACTION_COLORS: Record<string, string> = {
-  signup: "#ffec27", team_created: "#29adff", team_joined: "#00e436",
-  ready_up: "#ff77a8", message: "#c2c3c7", signin: "#29adff",
-  admin_delete: "#ff004d", first_message: "#ff77a8", unknown_message: "#5f574f",
-};
-
-function timeAgo(date: string): string {
+function TimeAgo({ date }: { date: string }) {
   const diff = Date.now() - new Date(date).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "now";
-  if (mins < 60) return `${mins}m`;
+  if (mins < 1) return <span>just now</span>;
+  if (mins < 60) return <span>{mins}m ago</span>;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  return `${Math.floor(hrs / 24)}d`;
+  if (hrs < 24) return <span>{hrs}h ago</span>;
+  return <span>{Math.floor(hrs / 24)}d ago</span>;
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="mb-4">
-      <p className="text-[#29adff] text-[7px] tracking-wider mb-1.5" style={px}>{label}</p>
-      {children}
-    </div>
-  );
-}
-
-function Badge({ text, color }: { text: string; color: string }) {
-  return (
-    <span className="text-[7px] px-2 py-0.5 border-2 inline-block" style={{ ...px, borderColor: color, color, background: `${color}10` }}>
-      {text}
-    </span>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
 export function AdminPage() {
-  const [authed, setAuthed] = useState(() => sessionStorage.getItem("bubl-admin") === "true");
-  const [passInput, setPassInput] = useState("");
-  const [passError, setPassError] = useState(false);
+  const [token, setToken] = useState(() => sessionStorage.getItem("admin-token") || "");
+  const [password, setPassword] = useState("");
+  const [authed, setAuthed] = useState(!!token);
+  const [error, setError] = useState("");
 
-  const [signups, setSignups] = useState<Signup[]>([]);
+  const [tab, setTab] = useState<"overview" | "users" | "teams" | "chats">("overview");
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [activity, setActivity] = useState<Activity[]>([]);
-  const [visits, setVisits] = useState<Visit[]>([]);
-  const [analytics, setAnalytics] = useState({ totalVisits: 0, todayVisits: 0, weekVisits: 0, activeLastHour: 0 });
+  const [convos, setConvos] = useState<Conversation[]>([]);
+  const [selectedConvo, setSelectedConvo] = useState<string | null>(null);
+  const [convoMessages, setConvoMessages] = useState<Message[]>([]);
 
-  const [tab, setTab] = useState<"users" | "guys" | "girls" | "teams" | "logs" | "visits">("users");
-  const [teamFilter, setTeamFilter] = useState<string | null>(null);
-  const [visitFilter, setVisitFilter] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [selectedUser, setSelectedUser] = useState<Signup | null>(null);
-  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
-  const [loading, setLoading] = useState(true);
+  const login = async () => {
+    setError("");
+    try {
+      const res = await apiFetch("/stats", password);
+      if (!res.ok) { setError("wrong password"); return; }
+      setToken(password);
+      sessionStorage.setItem("admin-token", password);
+      setAuthed(true);
+      setStats(res.stats);
+    } catch { setError("connection failed"); }
+  };
 
-  useEffect(() => { if (authed) load(); }, [authed]);
+  useEffect(() => {
+    if (!authed) return;
+    apiFetch("/stats", token).then(r => { if (r.ok) setStats(r.stats); else setAuthed(false); });
+  }, [authed, token]);
 
-  // ── Password gate ──
+  useEffect(() => {
+    if (!authed) return;
+    if (tab === "users") apiFetch("/profiles", token).then(r => r.ok && setProfiles(r.profiles));
+    if (tab === "teams") apiFetch("/teams", token).then(r => r.ok && setTeams(r.teams));
+    if (tab === "chats") apiFetch("/chats", token).then(r => r.ok && setConvos(r.conversations));
+  }, [tab, authed, token]);
+
+  useEffect(() => {
+    if (!selectedConvo || !authed) return;
+    apiFetch(`/chat/${selectedConvo}`, token).then(r => r.ok && setConvoMessages(r.messages));
+  }, [selectedConvo, authed, token]);
+
   if (!authed) {
     return (
-      <div className="min-h-screen bg-[#0d0d1a] flex items-center justify-center" style={px}>
-        <div className="text-center">
-          <h1 className="text-[20px] text-[#ff004d] mb-2">bubl.</h1>
-          <p className="text-[#c2c3c7] text-[9px] mb-8 tracking-widest">&lt; ADMIN &gt;</p>
-          <input
-            type="password" value={passInput} autoFocus
-            onChange={e => { setPassInput(e.target.value); setPassError(false); }}
-            onKeyDown={e => {
-              if (e.key === "Enter") {
-                if (passInput === ADMIN_PASS) { sessionStorage.setItem("bubl-admin", "true"); setAuthed(true); }
-                else setPassError(true);
-              }
-            }}
-            placeholder="PASSWORD"
-            className={`w-[280px] px-4 py-3 border-4 ${passError ? "border-[#ff004d]" : "border-[#29adff]"} bg-[#1d2b53] text-white text-[11px] text-center placeholder-[#c2c3c7]/30 focus:outline-none focus:border-[#ffec27]`}
-            style={px}
-          />
-          {passError && <p className="text-[#ff004d] text-[9px] mt-3">WRONG PASSWORD</p>}
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4">
+        <div className="w-full max-w-xs bg-[#1e293b] border border-[#334155] rounded-lg p-6">
+          <h1 className="text-white text-lg font-semibold mb-1">admin</h1>
+          <p className="text-[#64748b] text-xs mb-4">doubles by ditto</p>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && login()}
+            placeholder="password" autoFocus
+            className="w-full px-3 py-2 bg-[#0f172a] border border-[#334155] rounded text-white text-sm placeholder:text-[#475569] focus:outline-none focus:border-[#6366f1] mb-3" />
+          {error && <p className="text-red-400 text-xs mb-2">{error}</p>}
+          <button onClick={login}
+            className="w-full py-2 bg-[#6366f1] text-white text-sm rounded hover:bg-[#4f46e5] transition-colors">
+            log in
+          </button>
         </div>
       </div>
     );
   }
 
-  // ── Data loading ──
-  async function load() {
-    setLoading(true);
-    try {
-      const [a, b, c, d, e] = await Promise.all([
-        fetch("/api/blind-date/admin/signups").then(r => r.json()),
-        fetch("/api/blind-date/admin/teams").then(r => r.json()),
-        fetch("/api/blind-date/admin/analytics").then(r => r.json()),
-        fetch("/api/blind-date/admin/activity").then(r => r.json()),
-        fetch("/api/blind-date/admin/visits").then(r => r.json()),
-      ]);
-      setSignups(a.signups || []);
-      setTeams(b.teams || []);
-      if (c.ok) setAnalytics(c);
-      setActivity(d.logs || []);
-      setVisits(e.visits || []);
-    } catch (err) { console.error("Load failed:", err); }
-    setLoading(false);
-  }
-
-  async function removeUser(id: string) {
-    if (!confirm("Remove user?")) return;
-    await fetch(`/api/blind-date/admin/signups/${id}`, { method: "DELETE" }).catch(() => {});
-    setSignups(p => p.filter(s => s.id !== id));
-    if (selectedUser?.id === id) setSelectedUser(null);
-  }
-
-  async function removeTeam(id: string) {
-    if (!confirm("Remove team?")) return;
-    await fetch(`/api/blind-date/admin/teams/${id}`, { method: "DELETE" }).catch(() => {});
-    setTeams(p => p.filter(t => t.id !== id));
-    if (selectedTeam?.id === id) setSelectedTeam(null);
-  }
-
-  async function removeLog(id: string) {
-    await fetch(`/api/blind-date/admin/activity/${id}`, { method: "DELETE" }).catch(() => {});
-    setActivity(p => p.filter(a => a.id !== id));
-  }
-
-  async function removeVisit(id: string) {
-    await fetch(`/api/blind-date/admin/visits/${id}`, { method: "DELETE" }).catch(() => {});
-    setVisits(p => p.filter(v => v.id !== id));
-  }
-
-  // ── Derived data ──
-  const fullTeams = teams.filter(t => t.status === "full");
-  const waitingTeams = teams.filter(t => t.status === "waiting");
-  const readyTeams = teams.filter(t => t.player1_ready && t.player2_ready);
-
-  const guys = signups.filter(s => s.gender === "male");
-  const girls = signups.filter(s => s.gender === "female");
-
-  const filteredUsers = signups.filter(s =>
-    s.name.toLowerCase().includes(search.toLowerCase()) || s.phone.includes(search)
-  );
-
-  let filteredTeams = teams;
-  if (teamFilter === "full") filteredTeams = fullTeams;
-  else if (teamFilter === "waiting") filteredTeams = waitingTeams;
-  else if (teamFilter === "ready") filteredTeams = readyTeams;
-
-  const now = Date.now();
-  let filteredVisits = visits;
-  if (visitFilter === "active1h") filteredVisits = visits.filter(v => now - new Date(v.created_at).getTime() < 3600000);
-  else if (visitFilter === "today") { const t = new Date(); t.setHours(0,0,0,0); filteredVisits = visits.filter(v => new Date(v.created_at) >= t); }
-  else if (visitFilter === "week") filteredVisits = visits.filter(v => now - new Date(v.created_at).getTime() < 604800000);
-
-  // ── Stat click handler ──
-  function onStat(filter: string) {
-    if (["active1h", "today", "week", "alltime"].includes(filter)) { setTab("visits"); setVisitFilter(filter === "alltime" ? null : filter); setTeamFilter(null); }
-    else if (filter === "signups") { setTab("users"); setTeamFilter(null); setVisitFilter(null); }
-    else if (filter === "guys") { setTab("guys"); setTeamFilter(null); setVisitFilter(null); }
-    else if (filter === "girls") { setTab("girls"); setTeamFilter(null); setVisitFilter(null); }
-    else if (["teams", "full", "ready", "waiting"].includes(filter)) { setTab("teams"); setTeamFilter(filter === "teams" ? null : filter); setVisitFilter(null); }
-  }
-
   return (
-    <div className="min-h-screen bg-[#0d0d1a] text-[#fff1e8] flex flex-col" style={px}>
-
-      {/* ── Top bar ── */}
-      <div className="border-b-4 border-[#29adff] bg-[#1d2b53]/80 px-4 py-3">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <span className="text-[14px] text-[#ff004d]">bubl.</span>
-            <span className="text-[#c2c3c7] text-[8px]">ADMIN</span>
-          </div>
-          <button onClick={load} className="text-[#29adff] text-[7px] hover:text-[#ffec27]">REFRESH</button>
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {[
-            { v: analytics.activeLastHour, l: "ACTIVE 1H", c: "#00e436", f: "active1h" },
-            { v: analytics.todayVisits, l: "TODAY", c: "#29adff", f: "today" },
-            { v: analytics.weekVisits, l: "THIS WEEK", c: "#ff77a8", f: "week" },
-            { v: analytics.totalVisits, l: "ALL TIME", c: "#c2c3c7", f: "alltime" },
-            { v: signups.length, l: "SIGNUPS", c: "#ffec27", f: "signups" },
-            { v: guys.length, l: "GUYS", c: "#29adff", f: "guys" },
-            { v: girls.length, l: "GIRLS", c: "#ff77a8", f: "girls" },
-            { v: teams.length, l: "TEAMS", c: "#29adff", f: "teams" },
-            { v: fullTeams.length, l: "FULL", c: "#00e436", f: "full" },
-            { v: readyTeams.length, l: "READY", c: "#ff77a8", f: "ready" },
-            { v: waitingTeams.length, l: "WAITING", c: "#5f574f", f: "waiting" },
-          ].map((s, i) => (
-            <button key={i} onClick={() => onStat(s.f)}
-              className={`shrink-0 border-2 px-3 py-1.5 text-center hover:opacity-80 ${(teamFilter === s.f || visitFilter === s.f) ? "ring-2 ring-white" : ""}`}
-              style={{ borderColor: s.c, background: `${s.c}10` }}>
-              <p className="text-[11px]" style={{ color: s.c }}>{s.v}</p>
-              <p className="text-[5px] mt-0.5 text-[#c2c3c7]">{s.l}</p>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Main ── */}
-      <div className="flex flex-col sm:flex-row flex-1 overflow-hidden">
-
-        {/* ── Left panel ── */}
-        <div className="w-full sm:w-[340px] border-b-4 sm:border-b-0 sm:border-r-4 border-[#29adff] flex flex-col sm:h-[calc(100vh-100px)]">
-
-          {/* Tabs */}
-          <div className="flex gap-1 p-3 border-b-4 border-[#29adff]">
-            {([["users","#29adff"],["guys","#29adff"],["girls","#ff77a8"],["teams","#ff77a8"],["logs","#ffec27"],["visits","#00e436"]] as const).map(([t, c]) => (
-              <button key={t} onClick={() => { setTab(t); setTeamFilter(null); setVisitFilter(null); }}
-                className={`flex-1 py-2 text-[6px] border-2 ${tab === t ? `bg-[${c}] text-[#1d2b53]` : "text-[#c2c3c7]"}`}
-                style={{ borderColor: tab === t ? c : `${c}40`, background: tab === t ? c : "transparent" }}>
-                {t.toUpperCase()}
+    <div className="min-h-screen bg-[#0f172a] text-white">
+      {/* Header */}
+      <div className="border-b border-[#1e293b] px-4 sm:px-6 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <h1 className="text-sm font-semibold">ditto admin</h1>
+          <div className="flex gap-1">
+            {(["overview", "users", "teams", "chats"] as const).map(t => (
+              <button key={t} onClick={() => setTab(t)}
+                className={`px-3 py-1 text-xs rounded ${tab === t ? "bg-[#6366f1] text-white" : "text-[#94a3b8] hover:text-white hover:bg-[#1e293b]"}`}>
+                {t}
               </button>
             ))}
           </div>
+        </div>
+        <button onClick={() => { setAuthed(false); setToken(""); sessionStorage.removeItem("admin-token"); }}
+          className="text-[#64748b] text-xs hover:text-white">logout</button>
+      </div>
 
-          {/* Search (users only) */}
-          {(tab === "users" || tab === "guys" || tab === "girls") && (
-            <div className="p-3 border-b-4 border-[#29adff]">
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 w-4 h-4 text-[#29adff]" />
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="SEARCH..."
-                  className="w-full pl-10 pr-4 py-2 border-4 border-[#29adff] bg-[#1d2b53] text-white text-[9px] placeholder-[#c2c3c7]/30 focus:outline-none focus:border-[#ffec27]"
-                  style={px} />
+      <div className="max-w-6xl mx-auto p-4 sm:p-6">
+
+        {/* Overview */}
+        {tab === "overview" && stats && (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            {[
+              { label: "users", value: stats.totalProfiles, color: "#6366f1" },
+              { label: "teams", value: stats.totalTeams, color: "#ec4899" },
+              { label: "full teams", value: stats.fullTeams, color: "#00e436" },
+              { label: "total DMs", value: stats.totalMessages, color: "#ffec27" },
+              { label: "DMs (24h)", value: stats.recentMessages, color: "#f97316" },
+            ].map(s => (
+              <div key={s.label} className="bg-[#1e293b] border border-[#334155] rounded-lg p-4">
+                <p className="text-[#64748b] text-[10px] uppercase tracking-wider">{s.label}</p>
+                <p className="text-2xl font-bold mt-1" style={{ color: s.color }}>{s.value}</p>
               </div>
-            </div>
-          )}
-
-          {/* List */}
-          <div className="flex-1 overflow-y-auto">
-            {loading ? (
-              <p className="text-center text-[#c2c3c7] py-10 text-[9px]">LOADING...</p>
-
-            ) : (tab === "users" || tab === "guys" || tab === "girls") ? (
-              (() => {
-                let list = filteredUsers;
-                if (tab === "guys") list = list.filter(s => s.gender === "male");
-                if (tab === "girls") list = list.filter(s => s.gender === "female");
-                return list.length === 0 ? <p className="text-center text-[#c2c3c7] py-10 text-[8px]">NO {tab.toUpperCase()}</p> : (
-                list.map(s => (
-                  <button key={s.id} onClick={() => { setSelectedUser(s); setSelectedTeam(null); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b-2 border-[#1d2b53] ${selectedUser?.id === s.id ? "bg-[#1d2b53]" : "hover:bg-[#1d2b53]/60"}`}>
-                    <div className="w-9 h-9 border-2 border-[#ff77a8] bg-[#1d2b53] flex items-center justify-center shrink-0">
-                      <span className="text-[11px] text-[#ff77a8]">{s.name[0]?.toUpperCase()}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[8px] truncate">{s.name}</p>
-                      <p className="text-[#c2c3c7] text-[7px] truncate mt-0.5">{s.phone}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      <Badge text={s.status.toUpperCase()} color={s.status === "matched" ? "#00e436" : "#ffec27"} />
-                      <span className="text-[#c2c3c7]/40 text-[6px]">{timeAgo(s.created_at)}</span>
-                    </div>
-                  </button>
-                ))
-              );
-              })()
-
-            ) : tab === "teams" ? (
-              filteredTeams.length === 0 ? <p className="text-center text-[#c2c3c7] py-10 text-[8px]">NO TEAMS</p> : (
-                filteredTeams.map(t => (
-                  <button key={t.id} onClick={() => { setSelectedTeam(t); setSelectedUser(null); }}
-                    className={`w-full text-left px-4 py-3 border-b-2 border-[#1d2b53] ${selectedTeam?.id === t.id ? "bg-[#1d2b53]" : "hover:bg-[#1d2b53]/60"}`}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-[#29adff] text-[9px]">{t.code}</span>
-                      <Badge text={t.status.toUpperCase()} color={t.status === "full" ? "#00e436" : "#ffec27"} />
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 ${t.player1_ready ? "bg-[#00e436]" : "bg-[#ffec27]"}`} />
-                        <span className="text-[7px]">{t.player1_name}</span>
-                      </div>
-                      {t.player2_name ? (
-                        <div className="flex items-center gap-2">
-                          <span className={`w-2 h-2 ${t.player2_ready ? "bg-[#00e436]" : "bg-[#ffec27]"}`} />
-                          <span className="text-[7px]">{t.player2_name}</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 bg-[#5f574f]" />
-                          <span className="text-[7px] text-[#5f574f]">WAITING</span>
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-[#c2c3c7]/30 text-[6px] mt-1.5">{timeAgo(t.created_at)}</p>
-                  </button>
-                ))
-              )
-
-            ) : tab === "logs" ? (
-              activity.length === 0 ? <p className="text-center text-[#c2c3c7] py-10 text-[8px]">NO LOGS</p> : (
-                activity.map(a => {
-                  const c = ACTION_COLORS[a.action] || "#5f574f";
-                  return (
-                    <div key={a.id} className="px-3 py-2.5 border-b-2 border-[#1d2b53] group relative">
-                      <button onClick={() => removeLog(a.id)} className="absolute top-2 right-2 text-[#ff004d]/0 group-hover:text-[#ff004d]/60 hover:!text-[#ff004d] text-[10px]">&times;</button>
-                      <div className="flex items-center justify-between mb-1">
-                        <Badge text={a.action.replace(/_/g, " ").toUpperCase()} color={c} />
-                        <span className="text-[#c2c3c7]/30 text-[5px]">{timeAgo(a.created_at)}</span>
-                      </div>
-                      {a.actor_name && <p className="text-[7px]">{a.actor_name}</p>}
-                      {a.actor_phone && <p className="text-[#c2c3c7] text-[6px]">{a.actor_phone}</p>}
-                      {a.details && <p className="text-[#c2c3c7]/50 text-[5px] mt-1 break-words leading-[1.8]">{a.details}</p>}
-                    </div>
-                  );
-                })
-              )
-
-            ) : tab === "visits" ? (
-              filteredVisits.length === 0 ? <p className="text-center text-[#c2c3c7] py-10 text-[8px]">NO VISITS</p> : (
-                filteredVisits.map(v => (
-                  <div key={v.id} className="px-3 py-2 border-b-2 border-[#1d2b53] group relative">
-                    <button onClick={() => removeVisit(v.id)} className="absolute top-1.5 right-2 text-[#ff004d]/0 group-hover:text-[#ff004d]/60 hover:!text-[#ff004d] text-[10px]">&times;</button>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[#00e436] text-[7px]">{v.path || "/"}</span>
-                      <span className="text-[#c2c3c7]/30 text-[5px]">{timeAgo(v.created_at)}</span>
-                    </div>
-                    {v.ip && <p className="text-[#ffec27] text-[6px]">IP: {v.ip}</p>}
-                    {v.referrer && <p className="text-[#c2c3c7] text-[5px] truncate">FROM: {v.referrer}</p>}
-                    {v.user_agent && <p className="text-[#c2c3c7]/30 text-[4px] truncate mt-0.5">{v.user_agent}</p>}
-                  </div>
-                ))
-              )
-
-            ) : null}
+            ))}
           </div>
-        </div>
+        )}
 
-        {/* ── Right detail panel ── */}
-        <div className="flex-1 flex items-start justify-center p-4 sm:p-8 overflow-y-auto">
-          {selectedUser ? (
-            <div className="max-w-md w-full">
-              <button onClick={() => setSelectedUser(null)} className="mb-3 text-[#c2c3c7] hover:text-white"><X className="w-5 h-5" /></button>
-              <div className="border-4 border-[#29adff] bg-[#1d2b53] p-5 space-y-4">
-                <div>
-                  <h2 className="text-[14px]">{selectedUser.name}</h2>
-                  <p className="text-[#c2c3c7] text-[8px] mt-1">{selectedUser.phone}</p>
-                </div>
-                <div className="h-[3px] bg-[#29adff]/20" />
-                <Row label="STATUS"><Badge text={selectedUser.status.toUpperCase()} color={selectedUser.status === "matched" ? "#00e436" : "#ffec27"} /></Row>
-                <Row label="GENDER"><span className="text-[8px] text-[#fff1e8]/70">{selectedUser.gender || "---"}</span></Row>
-                <Row label="AGE"><span className="text-[8px] text-[#fff1e8]/70">{selectedUser.age || "---"}</span></Row>
-                <Row label="SCHOOL"><span className="text-[8px] text-[#fff1e8]/70">{selectedUser.school_id_url || "---"}</span></Row>
-                <Row label="LOOKING FOR"><span className="text-[8px] text-[#fff1e8]/70">{selectedUser.looking_for || "---"}</span></Row>
-                <Row label="HOBBIES">
-                  {Array.isArray(selectedUser.hobbies) && selectedUser.hobbies.length > 0
-                    ? <div className="flex flex-wrap gap-1.5">{selectedUser.hobbies.map(h => <Badge key={h} text={h} color="#ff77a8" />)}</div>
-                    : <span className="text-[8px] text-[#c2c3c7]">---</span>}
-                </Row>
-                <Row label="TEAM">
-                  {(() => {
-                    const team = teams.find(t => t.player1_phone === selectedUser.phone || t.player2_phone === selectedUser.phone);
-                    if (!team) return <span className="text-[8px] text-[#c2c3c7]">NO TEAM</span>;
-                    const isP1 = team.player1_phone === selectedUser.phone;
-                    return (
-                      <div className="space-y-1">
-                        <p className="text-[#29adff] text-[8px]">CODE: {team.code}</p>
-                        <p className="text-[7px] text-[#fff1e8]/70">TEAMMATE: {isP1 ? team.player2_name || "NONE" : team.player1_name}</p>
-                        <Badge text={team.status.toUpperCase()} color={team.status === "full" ? "#00e436" : "#ffec27"} />
-                      </div>
-                    );
-                  })()}
-                </Row>
-                <Row label="SIGNED UP"><span className="text-[7px] text-[#c2c3c7]">{new Date(selectedUser.created_at).toLocaleString()}</span></Row>
-                {selectedUser.signup_ip && <Row label="IP"><span className="text-[8px] text-[#ffec27]">{selectedUser.signup_ip}</span></Row>}
-                {selectedUser.user_agent && <Row label="DEVICE"><span className="text-[6px] text-[#c2c3c7] break-words leading-[1.8]">{selectedUser.user_agent}</span></Row>}
-                {selectedUser.referrer && <Row label="REFERRER"><span className="text-[7px] text-[#29adff] break-words">{selectedUser.referrer}</span></Row>}
-                <button onClick={() => removeUser(selectedUser.id)}
-                  className="w-full py-3 border-4 border-[#ff004d] bg-[#ff004d]/10 text-[#ff004d] text-[8px] hover:bg-[#ff004d]/25 mt-2">
-                  REMOVE
+        {/* Users */}
+        {tab === "users" && (
+          <div className="bg-[#1e293b] border border-[#334155] rounded-lg overflow-hidden">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-[#334155] text-[#64748b]">
+                  <th className="text-left p-3">name</th>
+                  <th className="text-left p-3 hidden sm:table-cell">email</th>
+                  <th className="text-left p-3 hidden sm:table-cell">gender</th>
+                  <th className="text-left p-3">ig linked</th>
+                  <th className="text-left p-3">signed up</th>
+                </tr>
+              </thead>
+              <tbody>
+                {profiles.map(p => (
+                  <tr key={p.id} className="border-b border-[#334155]/50 hover:bg-[#334155]/30">
+                    <td className="p-3 text-white">{p.name}</td>
+                    <td className="p-3 text-[#94a3b8] hidden sm:table-cell">{p.email || "—"}</td>
+                    <td className="p-3 text-[#94a3b8] hidden sm:table-cell">{p.gender || "—"}</td>
+                    <td className="p-3">{p.ig_id ? <span className="text-[#00e436]">yes</span> : <span className="text-[#64748b]">no</span>}</td>
+                    <td className="p-3 text-[#64748b]"><TimeAgo date={p.created_at} /></td>
+                  </tr>
+                ))}
+                {profiles.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-[#64748b]">no users yet</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Teams */}
+        {tab === "teams" && (
+          <div className="bg-[#1e293b] border border-[#334155] rounded-lg overflow-hidden">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-[#334155] text-[#64748b]">
+                  <th className="text-left p-3">code</th>
+                  <th className="text-left p-3">player 1</th>
+                  <th className="text-left p-3">player 2</th>
+                  <th className="text-left p-3">status</th>
+                  <th className="text-left p-3">created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teams.map(t => (
+                  <tr key={t.id} className="border-b border-[#334155]/50 hover:bg-[#334155]/30">
+                    <td className="p-3 text-[#6366f1] font-mono">{t.code}</td>
+                    <td className="p-3 text-white">{t.player1_name}</td>
+                    <td className="p-3">{t.player2_name ? <span className="text-white">{t.player2_name}</span> : <span className="text-[#64748b]">waiting...</span>}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded text-[10px] ${t.status === "full" ? "bg-[#00e436]/20 text-[#00e436]" : t.status === "matched" ? "bg-[#6366f1]/20 text-[#6366f1]" : "bg-[#ffec27]/20 text-[#ffec27]"}`}>
+                        {t.status}
+                      </span>
+                    </td>
+                    <td className="p-3 text-[#64748b]"><TimeAgo date={t.created_at} /></td>
+                  </tr>
+                ))}
+                {teams.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-[#64748b]">no teams yet</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Chats */}
+        {tab === "chats" && (
+          <div className="flex gap-4 h-[calc(100vh-120px)]">
+            {/* Conversation list */}
+            <div className="w-[240px] shrink-0 bg-[#1e293b] border border-[#334155] rounded-lg overflow-y-auto">
+              <p className="p-3 text-[10px] text-[#64748b] uppercase tracking-wider border-b border-[#334155]">conversations</p>
+              {convos.map(c => (
+                <button key={c.userId} onClick={() => setSelectedConvo(c.userId)}
+                  className={`w-full text-left p-3 border-b border-[#334155]/50 hover:bg-[#334155]/30 ${selectedConvo === c.userId ? "bg-[#334155]/50" : ""}`}>
+                  <p className="text-xs text-white truncate">{c.userId.slice(0, 16)}...</p>
+                  <p className="text-[10px] text-[#64748b] mt-0.5">{c.messages.length} msgs · <TimeAgo date={c.lastActivity} /></p>
                 </button>
-              </div>
+              ))}
+              {convos.length === 0 && <p className="p-4 text-xs text-[#64748b] text-center">no conversations</p>}
             </div>
 
-          ) : selectedTeam ? (
-            <div className="max-w-md w-full">
-              <button onClick={() => setSelectedTeam(null)} className="mb-3 text-[#c2c3c7] hover:text-white"><X className="w-5 h-5" /></button>
-              <div className="border-4 border-[#ff77a8] bg-[#1d2b53] p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-[14px] text-[#ff77a8]">TEAM {selectedTeam.code}</h2>
-                  <Badge text={selectedTeam.status.toUpperCase()} color={selectedTeam.status === "full" ? "#00e436" : "#ffec27"} />
-                </div>
-                <div className="h-[3px] bg-[#ff77a8]/20" />
-                <Row label="PLAYER 1">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-3 h-3 ${selectedTeam.player1_ready ? "bg-[#00e436]" : "bg-[#ffec27]"}`} />
-                      <span className="text-[9px]">{selectedTeam.player1_name}</span>
-                    </div>
-                    <p className="text-[#c2c3c7] text-[7px]">{selectedTeam.player1_phone}</p>
-                    <p className="text-[#c2c3c7] text-[6px]">{selectedTeam.player1_gender} · {selectedTeam.player1_ready ? "READY" : "NOT READY"}</p>
+            {/* Messages */}
+            <div className="flex-1 bg-[#1e293b] border border-[#334155] rounded-lg flex flex-col overflow-hidden">
+              {selectedConvo ? (
+                <>
+                  <div className="p-3 border-b border-[#334155] text-xs text-[#94a3b8]">
+                    {selectedConvo}
                   </div>
-                </Row>
-                <Row label="PLAYER 2">
-                  {selectedTeam.player2_name ? (
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-3 h-3 ${selectedTeam.player2_ready ? "bg-[#00e436]" : "bg-[#ffec27]"}`} />
-                        <span className="text-[9px]">{selectedTeam.player2_name}</span>
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    {convoMessages.map(m => (
+                      <div key={m.id} className={`flex ${m.role === "assistant" ? "justify-start" : "justify-end"}`}>
+                        <div className={`max-w-[80%] px-3 py-2 rounded-lg text-xs ${
+                          m.role === "assistant"
+                            ? "bg-[#334155] text-[#e2e8f0]"
+                            : "bg-[#6366f1] text-white"
+                        }`}>
+                          <p className="whitespace-pre-wrap">{m.content}</p>
+                          <p className="text-[9px] mt-1 opacity-50">
+                            {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-[#c2c3c7] text-[7px]">{selectedTeam.player2_phone}</p>
-                      <p className="text-[#c2c3c7] text-[6px]">{selectedTeam.player2_gender} · {selectedTeam.player2_ready ? "READY" : "NOT READY"}</p>
-                    </div>
-                  ) : <span className="text-[8px] text-[#5f574f]">WAITING FOR INVITE</span>}
-                </Row>
-                <Row label="CREATED"><span className="text-[7px] text-[#c2c3c7]">{new Date(selectedTeam.created_at).toLocaleString()}</span></Row>
-                <button onClick={() => removeTeam(selectedTeam.id)}
-                  className="w-full py-3 border-4 border-[#ff004d] bg-[#ff004d]/10 text-[#ff004d] text-[8px] hover:bg-[#ff004d]/25 mt-2">
-                  REMOVE TEAM
-                </button>
-              </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-[#64748b] text-sm">
+                  select a conversation
+                </div>
+              )}
             </div>
-
-          ) : (
-            <div className="text-center mt-20">
-              <p className="text-[#c2c3c7]/30 text-[8px]">SELECT A USER OR TEAM</p>
-              <p className="text-[#c2c3c7]/30 text-[8px] mt-2">TO VIEW DETAILS</p>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

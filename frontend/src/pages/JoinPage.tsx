@@ -20,7 +20,7 @@ export function JoinPage() {
   const openDitto = () => {
     setRedirecting(true);
     // Open IG DM with referral ref — ditto will know User B was invited by User A
-    window.location.href = `https://ig.me/m/ditto_ucr?ref=join_${code}`;
+    window.location.href = `https://ig.me/m/ditto.test?ref=join_${code}`;
   };
 
   return (
@@ -94,7 +94,7 @@ export function JoinPage() {
             <circle cx="19.5" cy="8.5" r="1.5" fill="white"/>
           </svg>
           <span className="text-[#111827] text-[14px]" style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800 }}>
-            {redirecting ? "Opening..." : "DM @ditto_ucr to Join"}
+            {redirecting ? "Opening..." : "DM @ditto.test to Join"}
           </span>
         </button>
 

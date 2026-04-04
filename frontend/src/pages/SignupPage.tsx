@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 
 const px = { fontFamily: "'Press Start 2P', monospace" };
@@ -17,12 +18,19 @@ const HEARD_FROM_OPTIONS = ["Poster", "Instagram", "TikTok", "Friend", "Other"];
 const API = import.meta.env.VITE_API_URL || "";
 
 export function SignupPage() {
+  const navigate = useNavigate();
   // Check if this is a duo invite (User B flow)
   const duoCode = new URLSearchParams(window.location.search).get("duo") || localStorage.getItem("ditto-duo-code") || "";
   const isUserB = !!duoCode;
 
   // Check if there's already a pending signup — resume at done screen
+  // But if this is a duo invite (User B), always start fresh
   const existing = (() => {
+    if (isUserB) {
+      localStorage.removeItem("ditto-pending-signup");
+      localStorage.removeItem("ditto-team-code");
+      return null;
+    }
     try {
       const saved = localStorage.getItem("ditto-pending-signup");
       if (saved) return JSON.parse(saved) as { name: string; code: string; gender: string };
@@ -85,7 +93,7 @@ export function SignupPage() {
 
   // Validation per step
   const canNext = () => {
-    if (step === 0) return name.trim() && age && gender && email.includes(".edu");
+    if (step === 0) return name.trim() && age && gender && email.includes("@");
     if (step === 1) return true; // about is optional-ish
     if (step === 2) return lookingFor && dateWho;
     return true;
@@ -116,12 +124,47 @@ export function SignupPage() {
       fd.append("heard_from", heardFrom);
       if (duoCode) fd.append("duo_code", duoCode);
 
-      await fetch(`${API}/api/bubl/profile`, { method: "POST", body: fd }).catch(() => {});
-    } catch {
-      // Non-blocking
+      const res = await fetch(`${API}/api/bubl/profile`, { method: "POST", body: fd });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(`save failed: ${data?.error || res.status}. try again.`);
+        setSubmitting(false);
+        return;
+      }
+
+      // User B: profile saved + linked to team — go straight to party
+      if (isUserB && data?.team_code) {
+        localStorage.setItem("ditto-team-code", data.team_code);
+        localStorage.removeItem("ditto-pending-signup");
+        setSubmitting(false);
+        navigate(`/party/${data.team_code}`);
+        return;
+      }
+    } catch (e) {
+      // Retry once in case ngrok interstitial blocked the first request
+      try {
+        const fd2 = new FormData();
+        fd2.append("name", name.trim());
+        fd2.append("phone", `signup_${code}`);
+        fd2.append("age", age);
+        fd2.append("gender", gender);
+        fd2.append("email", email.trim());
+        if (duoCode) fd2.append("duo_code", duoCode);
+        const retry = await fetch(`${API}/api/bubl/profile`, { method: "POST", body: fd2 });
+        const retryData = await retry.json().catch(() => null);
+        if (isUserB && retryData?.team_code) {
+          localStorage.setItem("ditto-team-code", retryData.team_code);
+          localStorage.removeItem("ditto-pending-signup");
+          setSubmitting(false);
+          navigate(`/party/${retryData.team_code}`);
+          return;
+        }
+      } catch {
+        console.error("[signup] Retry also failed:", e);
+      }
     }
 
-    // Save pending signup to localStorage so the front page knows
+    // User A: save pending signup and show DM ditto screen
     localStorage.setItem("ditto-pending-signup", JSON.stringify({
       name: name.trim(),
       code,
@@ -133,6 +176,42 @@ export function SignupPage() {
     setStep(4); // go to "done" screen
     setSubmitting(false);
   };
+
+  // Poll for signup completion — auto-redirect to party when bot processes them
+  useEffect(() => {
+    if (step !== 4 || !signupCode) return;
+
+    // For User B: check if their team has player2_ig_id set
+    const pendingTeam = localStorage.getItem("ditto-pending-team");
+
+    const interval = setInterval(async () => {
+      try {
+        if (pendingTeam) {
+          // User B: poll the team endpoint to see if ig_id got linked
+          const res = await fetch(`${API}/api/bubl/team/${pendingTeam}`);
+          const data = await res.json();
+          if (data.ok && data.team?.player2?.ready) {
+            clearInterval(interval);
+            localStorage.setItem("ditto-team-code", pendingTeam);
+            localStorage.removeItem("ditto-pending-signup");
+            localStorage.removeItem("ditto-pending-team");
+            navigate(`/party/${pendingTeam}`);
+          }
+        } else {
+          // User A: poll signup-status
+          const res = await fetch(`${API}/api/bubl/signup-status/${signupCode}`);
+          const data = await res.json();
+          if (data.status === "ready" && data.team_code) {
+            clearInterval(interval);
+            localStorage.setItem("ditto-team-code", data.team_code);
+            localStorage.removeItem("ditto-pending-signup");
+            navigate(`/party/${data.team_code}`);
+          }
+        }
+      } catch { /* ignore */ }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [step, signupCode, navigate]);
 
   const totalSteps = 5;
 
@@ -367,74 +446,53 @@ export function SignupPage() {
                   style={{ background: `radial-gradient(circle, ${isUserB ? "#00e436" : "#ec4899"}, transparent 70%)` }} />
               </div>
 
-              {isUserB ? (
-                <>
-                  <h1 className="text-[16px] sm:text-[20px] text-white mb-2" style={{ fontFamily: "'Rubik Glitch', system-ui" }}>you're in, {name.split(" ")[0] || "player"}</h1>
-                  <p className="text-[#64748b] text-[8px] mb-6">duo complete</p>
+              {(() => {
+                const doneContent = (
+                  <>
+                    <h1 className="text-[16px] sm:text-[20px] text-white mb-2" style={{ fontFamily: "'Rubik Glitch', system-ui" }}>almost there, {name.split(" ")[0] || "player"}</h1>
+                    <p className="text-[#64748b] text-[8px] mb-6">one more thing to finish</p>
 
-                  <div className="border-4 border-[#00e436]/30 bg-[#1c2444] p-5 mb-6">
-                    <div className="flex items-center justify-center gap-3 mb-4">
-                      <div className="w-3 h-3 bg-[#00e436] animate-pulse" />
-                      <span className="text-[#00e436] text-[9px]">REGISTERED</span>
-                      <div className="w-3 h-3 bg-[#00e436] animate-pulse" />
+                    <div className="border-4 border-[#ec4899]/30 bg-[#1c2444] p-5 mb-6">
+                      <div className="flex items-center justify-center gap-3 mb-4">
+                        <div className="w-3 h-3 bg-[#ffec27] animate-pulse" />
+                        <span className="text-[#ffec27] text-[9px]">1 STEP LEFT</span>
+                        <div className="w-3 h-3 bg-[#ffec27] animate-pulse" />
+                      </div>
+                      <p className="text-[#cbd5e1] text-[11px] leading-[2.2]">
+                        tap the button below to DM <span className="text-[#ec4899] font-bold">@ditto.test</span>
+                      </p>
+                      <p className="text-[#64748b] text-[8px] mt-2">
+                        just say hey — ditto will handle the rest
+                      </p>
                     </div>
-                    <p className="text-[#cbd5e1] text-[10px] leading-[2.2]">
-                      you and your friend are locked in
-                    </p>
-                    <p className="text-[#64748b] text-[8px] mt-2">
-                      ditto will match your duo with another pair this wednesday
-                    </p>
-                  </div>
 
-                  <a href="/"
-                    className="w-full py-4 flex items-center justify-center border-4 border-[#00e436] bg-[#00e436] text-[#111827] hover:bg-white hover:border-white active:scale-[0.98] transition-transform"
-                    style={{ textDecoration: "none", boxShadow: "4px 4px 0 #065f46" }}>
-                    <span className="text-[11px]" style={px}>BACK TO HOME</span>
-                  </a>
-                </>
-              ) : (
-                <>
-                  <h1 className="text-[16px] sm:text-[20px] text-white mb-2" style={{ fontFamily: "'Rubik Glitch', system-ui" }}>almost there, {name.split(" ")[0] || "player"}</h1>
-                  <p className="text-[#64748b] text-[8px] mb-6">one more thing to finish</p>
-
-                  <div className="border-4 border-[#ec4899]/30 bg-[#1c2444] p-5 mb-6">
-                    <div className="flex items-center justify-center gap-3 mb-4">
-                      <div className="w-3 h-3 bg-[#ffec27] animate-pulse" />
-                      <span className="text-[#ffec27] text-[9px]">1 STEP LEFT</span>
-                      <div className="w-3 h-3 bg-[#ffec27] animate-pulse" />
-                    </div>
-                    <p className="text-[#cbd5e1] text-[10px] leading-[2.2]">
-                      DM <span className="text-[#ec4899] font-bold">@ditto_ucr</span> to finish signing up
-                    </p>
-                    <p className="text-[#64748b] text-[8px] mt-2">
-                      just say hey — ditto will register you and get you matched
-                    </p>
-                  </div>
-
-                  <a href={`https://ig.me/m/ditto_ucr?ref=signup_${signupCode}`} target="_blank" rel="noopener noreferrer"
-                    className="w-full py-4 flex items-center justify-center gap-3 bg-white hover:bg-gray-100 active:scale-[0.98] transition-transform"
-                    style={{ borderRadius: "50px", textDecoration: "none" }}>
-                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" style={{ flexShrink: 0 }}>
-                      <defs>
-                        <radialGradient id="ig-grad" cx="30%" cy="107%" r="150%">
-                          <stop offset="0%" stopColor="#fdf497"/>
-                          <stop offset="5%" stopColor="#fdf497"/>
-                          <stop offset="45%" stopColor="#fd5949"/>
-                          <stop offset="60%" stopColor="#d6249f"/>
-                          <stop offset="90%" stopColor="#285AEB"/>
-                        </radialGradient>
-                      </defs>
-                      <rect width="28" height="28" rx="7" fill="url(#ig-grad)" />
-                      <rect x="5.5" y="5.5" width="17" height="17" rx="5" stroke="white" strokeWidth="2" fill="none"/>
-                      <circle cx="14" cy="14" r="4" stroke="white" strokeWidth="2" fill="none"/>
-                      <circle cx="19.5" cy="8.5" r="1.5" fill="white"/>
-                    </svg>
-                    <span className="text-[#111827] text-[14px]" style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800 }}>
-                      Open @ditto_ucr
-                    </span>
-                  </a>
-                </>
-              )}
+                    <button
+                      onClick={() => { window.location.href = `https://ig.me/m/ditto.test?ref=signup_${signupCode}`; }}
+                      className="w-full py-4 flex items-center justify-center gap-3 bg-white hover:bg-gray-100 active:scale-[0.98] transition-transform"
+                      style={{ borderRadius: "50px", border: "none", cursor: "pointer" }}>
+                      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" style={{ flexShrink: 0 }}>
+                        <defs>
+                          <radialGradient id="ig-grad" cx="30%" cy="107%" r="150%">
+                            <stop offset="0%" stopColor="#fdf497"/>
+                            <stop offset="5%" stopColor="#fdf497"/>
+                            <stop offset="45%" stopColor="#fd5949"/>
+                            <stop offset="60%" stopColor="#d6249f"/>
+                            <stop offset="90%" stopColor="#285AEB"/>
+                          </radialGradient>
+                        </defs>
+                        <rect width="28" height="28" rx="7" fill="url(#ig-grad)" />
+                        <rect x="5.5" y="5.5" width="17" height="17" rx="5" stroke="white" strokeWidth="2" fill="none"/>
+                        <circle cx="14" cy="14" r="4" stroke="white" strokeWidth="2" fill="none"/>
+                        <circle cx="19.5" cy="8.5" r="1.5" fill="white"/>
+                      </svg>
+                      <span className="text-[#111827] text-[14px]" style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800 }}>
+                        Open @ditto.test
+                      </span>
+                    </button>
+                  </>
+                );
+                return doneContent;
+              })()}
             </div>
           )}
 

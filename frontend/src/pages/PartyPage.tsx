@@ -1,294 +1,406 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 
 const px = { fontFamily: "'Press Start 2P', monospace" } as const;
+const display = { fontFamily: "'Rubik Glitch', system-ui" };
+const serif = { fontFamily: "'Spencer', serif" };
 
-const GIRL_NAMES = [
-  "Vivian", "Grace", "Amy", "Jennifer", "Michelle", "Jessica", "Tiffany", "Stephanie",
-  "Alice", "Cindy", "Emily", "Sophia", "Chloe", "Hannah", "Olivia", "Angela",
-  "May", "Jane", "Mia", "Abigail", "Natalie", "Harper", "Evelyn", "Hana",
-  "Mina", "Yuna", "Sakura", "Mei", "Aiko", "Yuki", "Emi", "Reina",
-  "Rin", "Sora", "Miyuki", "Misaki", "Nozomi", "Seoyeon", "Bora", "Jina",
-];
+const API = import.meta.env.VITE_API_URL || "";
 
-const BOY_NAMES = [
-  "Andrew", "Eric", "Kevin", "Peter", "Albert", "David", "Daniel", "Jason",
-  "Justin", "Michael", "Brian", "Brandon", "Ryan", "Alex", "Andy", "Alan",
-  "Sam", "Ethan", "Noah", "Liam", "Lucas", "Aiden", "Nathan", "Tyler",
-  "Kenji", "Hiroshi", "Haruki", "Kaito", "Riku", "Minjun", "Seojun", "Joon",
-  "Sungho", "Taeyang", "Jungwoo", "Minho", "Ren", "Jin", "Felix", "Victor",
-];
+/* ─── Floating particles ─── */
+function Particles() {
+  const particles = Array.from({ length: 20 }, (_, i) => ({
+    left: `${Math.random() * 100}%`,
+    delay: `${Math.random() * 5}s`,
+    duration: `${3 + Math.random() * 4}s`,
+    size: Math.random() > 0.5 ? 2 : 3,
+    color: ["#ec4899", "#6366f1", "#ffec27", "#00e436"][i % 4],
+  }));
+  return (
+    <div className="fixed inset-0 z-[2] pointer-events-none overflow-hidden">
+      {particles.map((p, i) => (
+        <div key={i} className="absolute rounded-full opacity-40"
+          style={{
+            left: p.left, bottom: "-10px",
+            width: p.size, height: p.size,
+            background: p.color,
+            animation: `float-up ${p.duration} ${p.delay} ease-out infinite`,
+          }} />
+      ))}
+    </div>
+  );
+}
 
-/* ─── Player slot ─── */
-function PlayerSlot({ name, filled, ready, onInvite, inviteCopied }: {
-  name?: string; filled: boolean; ready?: boolean;
-  onInvite?: () => void; inviteCopied?: boolean;
+/* ─── Glowing player card ─── */
+function PlayerCard({ name, ready, color, glow }: {
+  name: string; ready: boolean; color: string; glow: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2 sm:gap-3 w-[100px] sm:w-[140px]">
-      <div
-        className="w-full aspect-[3/4] flex items-center justify-center p-2"
+    <div className="flex flex-col items-center gap-2 animate-fade-up">
+      <div className="w-full aspect-square flex items-center justify-center border-4 bg-[#111827] relative overflow-hidden"
         style={{
-          border: `4px solid ${filled ? "#7C3AED" : "#6B7280"}`,
-          borderStyle: filled ? "solid" : "dashed",
-          background: filled ? "rgba(124,58,237,0.08)" : "#0B0014",
-          boxShadow: filled ? "4px 4px 0 #4C1D95" : "none",
-        }}
-      >
-        {filled ? (
-          ready ? (
-            <span className="text-[11px] sm:text-[16px] text-[#34D399]" style={px}>READY</span>
-          ) : (
-            <span className="text-[8px] sm:text-[11px] text-[#FACC15]" style={{ ...px, animation: "blink-pixel 2s step-end infinite" }}>NOT READY</span>
-          )
-        ) : (
-          <button
-            onClick={onInvite}
-            className="px-2 sm:px-4 py-1.5 sm:py-2 text-[6px] sm:text-[9px] active:translate-y-[2px]"
-            style={{
-              ...px,
-              border: `3px solid ${inviteCopied ? "#34D399" : "#7C3AED"}`,
-              background: inviteCopied ? "#34D399" : "#7C3AED",
-              color: inviteCopied ? "#0B0014" : "#fff",
-              boxShadow: `2px 2px 0 ${inviteCopied ? "#065F46" : "#4C1D95"}`,
-            }}
-          >
-            {inviteCopied ? "COPIED!" : "INVITE"}
-          </button>
-        )}
-      </div>
-      <div
-        className="w-full py-2 text-center text-[8px] sm:text-[9px]"
-        style={{
-          ...px,
-          border: `4px solid ${filled ? "#7C3AED" : "#6B7280"}`,
-          background: filled ? "#7C3AED" : "transparent",
-          color: filled ? "#fff" : "#6B7280",
-          boxShadow: filled ? "3px 3px 0 #4C1D95" : "none",
-        }}
-      >
-        {filled ? (name || "P1") : "???"}
+          borderColor: ready ? "#00e436" : color,
+          boxShadow: glow ? `0 0 20px ${ready ? "#00e43666" : color + "44"}, inset 0 0 30px ${ready ? "#00e43611" : color + "11"}` : "none",
+          transition: "all 0.5s ease",
+        }}>
+        {/* Shimmer overlay */}
+        <div className="absolute inset-0 opacity-10"
+          style={{ background: `linear-gradient(135deg, transparent 40%, ${color}33 50%, transparent 60%)`, animation: "shimmer 3s ease-in-out infinite" }} />
+        <div className="flex flex-col items-center gap-2 relative z-10">
+          <span className="text-[20px] sm:text-[24px]">{ready ? "✓" : "🎮"}</span>
+          <span className="text-[10px] sm:text-[12px]" style={{ ...px, color: ready ? "#00e436" : color }}>{name}</span>
+        </div>
       </div>
     </div>
   );
 }
 
-/* ─── TBD match slot with spinning names ─── */
-function TbdSlot({ index, matchGender }: { index: number; matchGender: "girl" | "boy" }) {
-  const names = matchGender === "girl" ? GIRL_NAMES : BOY_NAMES;
-  const [idx, setIdx] = useState(() => (index * 11) % names.length);
-
-  useEffect(() => {
-    const id = setInterval(() => setIdx(prev => (prev + 1) % names.length), 100);
-    return () => clearInterval(id);
-  }, [names]);
-
+/* ─── Mystery card with animated ? ─── */
+function MysteryCard() {
   return (
-    <div className="flex flex-col items-center gap-2 sm:gap-3 w-[100px] sm:w-[140px]">
-      <div
-        className="w-full aspect-[3/4] flex items-center justify-center"
-        style={{
-          border: "4px solid #C084FC",
-          background: "#0B0014",
-          boxShadow: "4px 4px 0 #6D28D9",
-        }}
-      >
-        <span className="text-[18px] sm:text-[22px]" style={{ ...px, color: "#C084FC" }}>TBD</span>
+    <div className="flex flex-col items-center gap-2">
+      <div className="w-full aspect-square flex items-center justify-center border-4 border-dashed border-[#ec489933] bg-[#111827] relative overflow-hidden">
+        <span className="text-[24px] sm:text-[30px] text-[#ec489944]" style={{ animation: "mystery-pulse 2s ease-in-out infinite" }}>?</span>
       </div>
-      <div
-        className="w-full py-2 text-center text-[7px] sm:text-[8px] overflow-hidden"
-        style={{ ...px, border: "4px solid #C084FC", background: "#C084FC", color: "#fff", boxShadow: "3px 3px 0 #6D28D9" }}
-      >
-        <span className="inline-block w-[70px] sm:w-[80px] text-center overflow-hidden">
-          {names[idx % names.length]}
-        </span>
-      </div>
+      <span className="text-[8px] text-[#64748b]">???</span>
     </div>
   );
 }
 
-/* ─── VS badge ─── */
-function VsBadge() {
+/* ─── Invite card ─── */
+function InviteCard({ onClick }: { onClick: () => void }) {
   return (
-    <div
-      className="px-3 py-2 text-[14px] sm:text-[18px] text-[#FACC15] self-center shrink-0"
-      style={{
-        ...px,
-        border: "4px solid #FACC15",
-        background: "#12081F",
-        boxShadow: "4px 4px 0 #A16207",
-        textShadow: "2px 2px 0 #A16207",
-      }}
-    >
-      VS
+    <div className="flex flex-col items-center gap-2 cursor-pointer group" onClick={onClick}>
+      <div className="w-full aspect-square flex items-center justify-center border-4 border-dashed bg-[#111827] relative overflow-hidden"
+        style={{
+          borderColor: "#6366f144",
+          animation: "invite-pulse 2s ease-in-out infinite",
+        }}>
+        <div className="flex flex-col items-center justify-center gap-2 text-center">
+          <span className="text-[24px] text-[#6366f1] group-hover:text-[#ffec27] group-hover:scale-125 transition-transform">+</span>
+          <span className="text-[8px] sm:text-[9px] text-[#6366f166] group-hover:text-[#ffec27]">TAP TO INVITE</span>
+        </div>
+      </div>
     </div>
   );
 }
 
 /* ═══ Page ═══ */
 export function PartyPage() {
-  const navigate = useNavigate();
   const { code } = useParams();
+  const teamCode = code || "demo";
 
-  // Demo state — in production this would come from backend
-  const player1 = { name: "You", ready: false };
-  const player2 = null as { name: string; ready: boolean } | null;
+  const [team, setTeam] = useState<{
+    player1: { name: string; gender: string; ready: boolean };
+    player2: { name: string; gender: string; ready: boolean } | null;
+    status: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [inviteCopied, setInviteCopied] = useState(false);
+
+  useEffect(() => {
+    if (teamCode === "demo") { setLoading(false); return; }
+    const fetchTeam = async () => {
+      try {
+        const res = await fetch(`${API}/api/bubl/team/${teamCode}`);
+        const data = await res.json();
+        if (data.ok) {
+          setTeam(data.team);
+          localStorage.setItem("ditto-team-code", teamCode);
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    };
+    fetchTeam();
+    const interval = setInterval(fetchTeam, 5000);
+    return () => clearInterval(interval);
+  }, [teamCode]);
+
+  const player1 = team?.player1 || { name: "You", gender: "unknown", ready: false };
+  const player2 = team?.player2 || null;
   const teamFull = player2 !== null;
   const playerCount = teamFull ? 2 : 1;
 
-  const teamCode = code || "demo";
-  const inviteLink = `https://ig.me/m/weakgarages?ref=invite_${teamCode}`;
-  const inviteText = `join my x2 double date team! 🎯 ${inviteLink}`;
-  const [inviteCopied, setInviteCopied] = useState(false);
-
   const sendInvite = async () => {
+    const inviteLink = `https://ig.me/m/ditto.test?ref=invite_${teamCode}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: "Join my x2 team!", text: inviteText, url: inviteLink });
+        await navigator.share({ title: "Join my doubles team!", text: "join my doubles team! 🎯", url: inviteLink });
+        setInviteCopied(true);
+        setTimeout(() => setInviteCopied(false), 2500);
         return;
-      } catch { /* user cancelled or share failed, fall through to clipboard */ }
+      } catch {
+        // User cancelled share — do nothing
+        return;
+      }
     }
     try {
       await navigator.clipboard.writeText(inviteLink);
       setInviteCopied(true);
       setTimeout(() => setInviteCopied(false), 2500);
-    } catch { /* clipboard not available */ }
+    } catch { /* */ }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: "#111827" }}>
+        <div className="w-8 h-8 border-4 border-[#ec4899] border-t-transparent rounded-full animate-spin" />
+        <span className="text-[#ffec27] text-[10px]" style={px}>loading lobby...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen relative overflow-x-hidden" style={px}>
-      {/* Background */}
+      {/* Toast */}
+      {inviteCopied && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] animate-fade-up">
+          <div className="px-5 py-3 border-4 border-[#00e436] bg-[#111827]" style={{ boxShadow: "4px 4px 0 #065f46" }}>
+            <p className="text-[#00e436] text-[9px]" style={px}>INVITE LINK COPIED!</p>
+          </div>
+        </div>
+      )}
+
+      {/* Background — vice city retro */}
       <div className="fixed inset-0 z-0">
-        <img src="/bg.jpg" alt="" className="absolute inset-0 w-full h-full object-cover" style={{ filter: "blur(12px)", imageRendering: "pixelated", transform: "scale(1.05)" }} />
-        <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, rgba(11,0,20,0.88) 0%, rgba(13,6,41,0.85) 40%, rgba(11,0,20,0.9) 100%)" }} />
+        <img src="/vicecity.jpg" alt="" className="w-full h-full object-cover"
+          style={{ filter: "saturate(1.6) contrast(1.1) brightness(0.4) hue-rotate(-10deg)", transform: "scale(1.05)" }} />
+        {/* Pink/purple tint overlay */}
+        <div className="absolute inset-0" style={{
+          background: "linear-gradient(180deg, rgba(236,72,153,0.15) 0%, rgba(99,102,241,0.2) 40%, rgba(17,24,39,0.85) 100%)",
+          mixBlendMode: "normal",
+        }} />
+        {/* Scanlines */}
+        <div className="absolute inset-0 opacity-[0.06]" style={{
+          backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.3) 2px, rgba(0,0,0,0.3) 4px)",
+        }} />
+        {/* CRT flicker */}
+        <div className="absolute inset-0 opacity-[0.02]" style={{
+          backgroundImage: "linear-gradient(rgba(255,255,255,0.03) 50%, transparent 50%)",
+          backgroundSize: "100% 4px",
+          animation: "crt-flicker 0.1s linear infinite",
+        }} />
+        {/* Vignette */}
+        <div className="absolute inset-0" style={{
+          background: "radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.7) 100%)",
+        }} />
+        {/* Chromatic aberration glow at edges */}
+        <div className="absolute inset-0 pointer-events-none" style={{
+          boxShadow: "inset 0 0 100px rgba(236,72,153,0.08), inset 0 0 200px rgba(99,102,241,0.05)",
+        }} />
       </div>
-      {/* Scanlines */}
-      <div className="fixed inset-0 z-[1] pointer-events-none opacity-[0.03]" style={{ backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, #000 2px, #000 4px)" }} />
+
+      <Particles />
 
       <div className="relative z-10 min-h-screen flex flex-col">
         {/* Nav */}
-        <nav className="w-full z-50">
+        <nav className="fixed top-0 w-full z-50 border-b-4 border-[#ec4899] bg-[#1c2444]/95 backdrop-blur-sm">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
-            <a href="/" className="leading-none" style={{ fontFamily: "'Bitter Sour', cursive", textDecoration: "none" }}>
-              <span style={{ color: "#FACC15", fontSize: "20px" }}>x</span>
-              <span style={{ color: "#FACC15", fontSize: "28px" }}>2</span>
+            <a href="/" className="leading-none" style={{ textDecoration: "none" }}>
+              <span className="text-white text-[18px] sm:text-[22px]" style={display}>dtd</span>
             </a>
-            <span className="text-[#FACC15] text-[7px] sm:text-[9px]">&lt; 2v2 LOBBY &gt;</span>
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 bg-[#00e436] animate-pulse" />
+              <span className="text-[#ec4899] text-[7px] sm:text-[9px]">&lt; YOUR LOBBY &gt;</span>
+            </div>
           </div>
         </nav>
 
         {/* Main */}
-        <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-5 py-8 sm:py-12 gap-6 sm:gap-10">
+        <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 pt-20 pb-12">
+          <div className="w-full max-w-2xl mx-auto">
 
-          {/* Title */}
-          <div className="text-center">
-            <p className="text-[#C084FC] text-[9px] sm:text-[10px] mb-3">&lt; DOUBLE DATE MODE &gt;</p>
-            <h1 className="text-[16px] sm:text-[28px] lg:text-[34px] text-[#E8DEF8] leading-[1.6] tracking-[-0.05em]">
-              {teamFull ? (
-                <span className="text-[#FACC15]">ready up</span>
-              ) : (
-                <>Double the <span className="text-[#FACC15]">Date</span></>
-              )}
-            </h1>
-          </div>
-
-          {/* Player count */}
-          <div
-            className="px-4 sm:px-5 py-2 text-[8px] sm:text-[13px]"
-            style={{
-              border: `4px solid ${teamFull ? "#34D399" : "#FACC15"}`,
-              background: "#12081F",
-              color: teamFull ? "#34D399" : "#FACC15",
-              boxShadow: `4px 4px 0 ${teamFull ? "#065F46" : "#A16207"}`,
-            }}
-          >
-            [ {playerCount} / 2 ] PLAYERS JOINED
-          </div>
-
-          {/* 2v2 Arena */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-4 lg:gap-8">
-            {/* Your side */}
-            <div className="flex gap-4 sm:gap-5">
-              <PlayerSlot name={player1.name} filled ready={player1.ready} />
-              {teamFull ? (
-                <PlayerSlot name={player2!.name} filled ready={player2!.ready} />
-              ) : (
-                <PlayerSlot filled={false} onInvite={sendInvite} />
-              )}
+            {/* Title */}
+            <div className="text-center mb-8 sm:mb-10 animate-fade-up">
+              <div className="relative inline-block">
+                <h1 className="text-[42px] sm:text-[70px] leading-none text-[#ec4899]" style={display}>
+                  double the date
+                </h1>
+                <h1 className="text-[42px] sm:text-[70px] leading-none text-[#6366f1] absolute top-0 left-0 animate-glitch-1 pointer-events-none" style={display} aria-hidden="true">
+                  double the date
+                </h1>
+              </div>
+              <p className="mt-4 text-[16px] sm:text-[24px]" style={{
+                ...serif,
+                color: teamFull ? "#00e436" : "#cbd5e1",
+                textShadow: teamFull ? "0 0 20px #00e43644" : "none",
+              }}>
+                {teamFull ? "duo locked in ✓" : "waiting for your duo..."}
+              </p>
             </div>
 
-            <VsBadge />
-
-            {/* Opponent side — TBD spinning */}
-            <div className="flex gap-4 sm:gap-5">
-              <TbdSlot index={1} matchGender="girl" />
-              <TbdSlot index={2} matchGender="girl" />
-            </div>
-          </div>
-
-          {/* Message */}
-          <p className="text-[#A5B4C8] text-[7px] sm:text-[10px] text-center leading-[2] sm:leading-[2.2] max-w-xs sm:max-w-sm px-2">
-            {teamFull
-              ? "Both teammates are in! x2 will find your match and DM you on Wednesday."
-              : "Invite your friend to join your team. Once both slots are filled, x2 will find your match!"
-            }
-          </p>
-
-          {/* Action button */}
-          {teamFull ? (
-            <a
-              href="https://ig.me/m/x2byditto"
-              className="px-6 sm:px-8 py-3 sm:py-4 text-[9px] sm:text-[13px] active:translate-x-[2px] active:translate-y-[2px] inline-block text-center"
-              style={{
-                border: "4px solid #34D399",
-                background: "#34D399",
-                color: "#0B0014",
-                boxShadow: "4px 4px 0 #065F46",
-              }}
-            >
-              &gt; READY UP — DM @x2byditto
-            </a>
-          ) : (
-            <button
-              onClick={sendInvite}
-              className="px-6 sm:px-8 py-3 sm:py-4 text-[9px] sm:text-[13px] active:translate-x-[2px] active:translate-y-[2px]"
-              style={{
-                border: "4px solid #FACC15",
-                background: inviteCopied ? "#34D399" : "#FACC15",
-                color: "#0B0014",
-                boxShadow: inviteCopied ? "4px 4px 0 #065F46" : "4px 4px 0 #A16207",
-              }}
-            >
-              {inviteCopied ? "LINK COPIED!" : "> INVITE FRIEND"}
-            </button>
-          )}
-
-          {/* Status blink */}
-          <p
-            className="text-[#6B7280] text-[7px] sm:text-[8px] uppercase"
-            style={{ animation: "blink-pixel 1.5s step-end infinite" }}
-          >
-            {teamFull ? "dm @x2byditto to ready up..." : "waiting for player 2..."}
-          </p>
-
-          {/* How it works */}
-          <div className="mt-8 pt-8 w-full max-w-lg" style={{ borderTop: "4px solid #7C3AED" }}>
-            <p className="text-[8px] uppercase tracking-widest mb-6 text-center" style={{ color: "#FACC15" }}>how it works</p>
-            <div className="grid grid-cols-3 gap-4 text-center">
-              {[
-                { step: "01", text: "sign up with a friend as a duo" },
-                { step: "02", text: "x2 matches your duo with another duo" },
-                { step: "03", text: "wednesday hits — double date time" },
-              ].map((s) => (
-                <div key={s.step}>
-                  <span className="text-[10px]" style={{ color: "#8B5CF6" }}>{s.step}</span>
-                  <p className="text-[7px] mt-2 leading-relaxed" style={{ color: "#A5B4C8" }}>{s.text}</p>
+            {/* Player count — animated bar */}
+            <div className="flex justify-center mb-8">
+              <div className="flex items-center gap-3">
+                <div className="w-[120px] sm:w-[160px] h-3 bg-[#1c2444] border-2 border-[#6366f1] overflow-hidden">
+                  <div className="h-full transition-all duration-1000 ease-out"
+                    style={{
+                      width: teamFull ? "100%" : "50%",
+                      background: teamFull ? "linear-gradient(90deg, #00e436, #34d399)" : "linear-gradient(90deg, #ec4899, #6366f1)",
+                      boxShadow: `0 0 10px ${teamFull ? "#00e436" : "#ec4899"}`,
+                    }} />
                 </div>
-              ))}
+                <span className="text-[8px] sm:text-[10px]" style={{ color: teamFull ? "#00e436" : "#ffec27" }}>
+                  {playerCount}/2
+                </span>
+              </div>
             </div>
+
+            {/* Arena */}
+            <div className="border-4 border-[#6366f1] bg-[#1c2444]/80 backdrop-blur-sm p-5 sm:p-8 relative overflow-hidden"
+              style={{ boxShadow: "0 0 30px #6366f122, 6px 6px 0 #3730a3" }}>
+
+              {/* Animated border glow */}
+              <div className="absolute inset-0 pointer-events-none"
+                style={{ boxShadow: `inset 0 0 40px ${teamFull ? "#00e43611" : "#6366f111"}` }} />
+
+              {/* ── Mobile: 2x2 grid (guy/girl per row) ── */}
+              <div className="sm:hidden">
+                <div className="grid grid-cols-2 gap-4 mb-3">
+                  <p className="text-[#6366f1] text-[8px] text-center uppercase tracking-[0.2em]">your duo</p>
+                  <p className="text-[#ec4899] text-[8px] text-center uppercase tracking-[0.2em]">mystery duo</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4 mb-3">
+                  <PlayerCard name={player1.name.split(" ")[0]} ready={player1.ready} color="#6366f1" glow />
+                  <MysteryCard />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {teamFull ? (
+                    <PlayerCard name={player2!.name.split(" ")[0]} ready={player2!.ready} color="#6366f1" glow />
+                  ) : (
+                    <InviteCard onClick={sendInvite} />
+                  )}
+                  <MysteryCard />
+                </div>
+              </div>
+
+              {/* ── Desktop: [guy guy] VS [girl girl] horizontal ── */}
+              <div className="hidden sm:block">
+                <div className="flex items-center justify-center gap-6">
+                  {/* Guys side */}
+                  <div className="flex-1">
+                    <p className="text-[#6366f1] text-[10px] text-center uppercase tracking-[0.3em] mb-4"
+                      style={{ textShadow: "0 0 10px #6366f144" }}>your duo</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <PlayerCard name={player1.name.split(" ")[0]} ready={player1.ready} color="#6366f1" glow />
+                      {teamFull ? (
+                        <PlayerCard name={player2!.name.split(" ")[0]} ready={player2!.ready} color="#6366f1" glow />
+                      ) : (
+                        <InviteCard onClick={sendInvite} />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* VS */}
+                  <div className="flex flex-col items-center gap-2 shrink-0">
+                    <div className="w-[2px] h-8" style={{ background: "linear-gradient(180deg, transparent, #6366f144)" }} />
+                    <span className="text-[20px] text-[#ffec27] px-3 py-2 border-4 border-[#ffec27]"
+                      style={{ ...px, textShadow: "0 0 15px #ffec2744, 2px 2px 0 #a16207", background: "#111827", boxShadow: "4px 4px 0 #a16207" }}>
+                      VS
+                    </span>
+                    <div className="w-[2px] h-8" style={{ background: "linear-gradient(180deg, #ec489944, transparent)" }} />
+                  </div>
+
+                  {/* Girls side */}
+                  <div className="flex-1">
+                    <p className="text-[#ec4899] text-[10px] text-center uppercase tracking-[0.3em] mb-4"
+                      style={{ textShadow: "0 0 10px #ec489944" }}>mystery duo</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <MysteryCard />
+                      <MysteryCard />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* VS divider — mobile only */}
+              <div className="flex items-center justify-center my-5 sm:hidden">
+                <div className="flex-1 h-[2px]" style={{ background: "linear-gradient(90deg, transparent, #6366f144, transparent)" }} />
+                <span className="px-5 text-[16px] text-[#ffec27]"
+                  style={{ ...px, textShadow: "0 0 15px #ffec2744, 2px 2px 0 #a16207", animation: "pulse-glow 2s ease-in-out infinite" }}>
+                  VS
+                </span>
+                <div className="flex-1 h-[2px]" style={{ background: "linear-gradient(90deg, transparent, #ec489944, transparent)" }} />
+              </div>
+
+              {/* Status */}
+              <div className="text-center mt-4 sm:mt-6">
+                <p className="text-[#94a3b8] text-[9px] sm:text-[10px] leading-[2.2]">
+                  {teamFull
+                    ? "party's full — double date this wednesday"
+                    : "invite your duo to fill the slot. ditto matches you every wednesday."
+                  }
+                </p>
+              </div>
+            </div>
+
+            {/* Action button */}
+            <div className="mt-8 flex justify-center animate-fade-up" style={{ animationDelay: "0.3s" }}>
+              {teamFull ? (
+                <div className="px-8 py-3 border-4 border-[#00e436] bg-[#00e436] text-[#111827] text-[10px] sm:text-[12px]"
+                  style={{ boxShadow: "0 0 20px #00e43644, 4px 4px 0 #065f46" }}>
+                  DUO COMPLETE ✓
+                </div>
+              ) : (
+                <button onClick={sendInvite}
+                  className="px-8 py-3 border-4 text-[10px] sm:text-[12px] active:translate-x-[2px] active:translate-y-[2px] hover:scale-[1.02] transition-transform"
+                  style={{
+                    borderColor: "#ec4899",
+                    background: "#ec4899",
+                    color: "#111827",
+                    boxShadow: "0 0 20px #ec489944, 4px 4px 0 #9d174d",
+                  }}>
+                  &gt; INVITE YOUR DUO
+                </button>
+              )}
+            </div>
+
+            {/* Blinking status */}
+            <p className="text-[#64748b] text-[7px] sm:text-[8px] text-center mt-4 uppercase"
+              style={{ animation: "blink-pixel 1.5s step-end infinite" }}>
+              {teamFull ? "matched every wednesday..." : "waiting for player 2..."}
+            </p>
+
           </div>
         </div>
       </div>
+
+      {/* Custom animations */}
+      <style>{`
+        @keyframes float-up {
+          0% { transform: translateY(0) scale(1); opacity: 0.4; }
+          50% { opacity: 0.8; }
+          100% { transform: translateY(-100vh) scale(0); opacity: 0; }
+        }
+        @keyframes shimmer {
+          0%, 100% { transform: translateX(-100%); }
+          50% { transform: translateX(100%); }
+        }
+        @keyframes mystery-pulse {
+          0%, 100% { transform: scale(1); opacity: 0.3; }
+          50% { transform: scale(1.2); opacity: 0.5; }
+        }
+        @keyframes pulse-glow {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+        @keyframes invite-pulse {
+          0%, 100% { border-color: rgba(99, 102, 241, 0.15); }
+          50% { border-color: rgba(99, 102, 241, 0.4); }
+        }
+        @keyframes animate-fade-up {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-up {
+          animation: animate-fade-up 0.6s ease-out both;
+        }
+        @keyframes crt-flicker {
+          0% { opacity: 0.02; }
+          50% { opacity: 0.04; }
+          100% { opacity: 0.02; }
+        }
+      `}</style>
     </div>
   );
 }

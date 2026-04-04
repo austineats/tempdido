@@ -360,6 +360,13 @@ export function DoublesPage() {
   const [pendingSignup, setPendingSignup] = useState<{ name: string; code: string; gender: string } | null>(null);
 
   useEffect(() => {
+    // Check if user has an active team — redirect to party page
+    const teamCode = localStorage.getItem("ditto-team-code");
+    if (teamCode) {
+      navigate(`/party/${teamCode}`);
+      return;
+    }
+
     // Check for completed registration first
     const saved = sessionStorage.getItem("ditto-user");
     if (saved) {
@@ -449,11 +456,7 @@ export function DoublesPage() {
           </button>
           <div className="flex items-center gap-2 sm:gap-4">
             {lobbyCode && (
-              <>
-                <span className="text-[#ffec27] text-[8px] sm:text-[10px] tracking-wider">{lobbyCode}</span>
-                <div className="w-2 h-2 bg-[#00e436] animate-pulse" />
-                <span className="text-[#64748b] text-[8px] sm:text-[11px]">|</span>
-              </>
+              <div className="w-2 h-2 bg-[#00e436] animate-pulse" />
             )}
             <button onClick={() => navigate("/signin")} className="text-[#cbd5e1] text-[8px] sm:text-[11px] hover:text-[#ffec27] transition-none py-2">
               [ SIGN IN ]
@@ -504,81 +507,142 @@ export function DoublesPage() {
           {/* ── Landing: 2v2 arena with sign up slot ── */}
           {view === "landing" && (
             <div className="max-w-2xl mx-auto">
-              <PixelBox color="#6366f1" className="bg-[#1c2444] p-4 sm:p-8" beam>
-                <div className="flex items-center justify-center gap-3 sm:gap-5">
-                  {/* Guys side */}
-                  <div className="text-center flex-1">
-                    <p className="text-[#6366f1] text-[7px] sm:text-[8px] mb-3 uppercase">guys</p>
-                    <div className="flex justify-center gap-3 sm:gap-4">
-                      {/* Slot 1: Sign Up or DM Ditto */}
-                      {pendingSignup ? (
-                        <div className="flex flex-col items-center gap-2 w-[70px] sm:w-[90px] cursor-pointer group"
-                          onClick={() => window.open(`https://ig.me/m/ditto_ucr?ref=signup_${pendingSignup.code}`, "_blank")}>
-                          <div className="w-full aspect-square flex items-center justify-center border-4 border-dashed border-[#ffec27] bg-[#111827] group-hover:bg-[#1c2444] transition-none"
-                            style={{ animation: "arcade-glow 2s ease-in-out infinite" }}>
-                            <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
-                              <rect width="28" height="28" rx="6" fill="#E1306C" />
-                              <path d="M14 8.87c-2.8 0-5.13 2.3-5.13 5.13S11.2 19.13 14 19.13 19.13 16.83 19.13 14 16.8 8.87 14 8.87zm0 8.47a3.34 3.34 0 110-6.68 3.34 3.34 0 010 6.68z" fill="white"/>
-                            </svg>
-                          </div>
-                          <span className="text-[6px] sm:text-[7px] text-[#ffec27]">{pendingSignup.name.split(" ")[0]}</span>
-                          <div className="px-2 py-0.5 text-[5px] sm:text-[6px] uppercase tracking-wider bg-[#ffec27] text-[#111827]">
-                            DM DITTO
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center gap-2 w-[70px] sm:w-[90px] cursor-pointer group" onClick={() => navigate("/signup")}>
-                          <div className="w-full aspect-square flex items-center justify-center border-4 border-dashed border-[#ec4899] bg-[#111827] group-hover:border-[#ffec27] group-hover:bg-[#1c2444] transition-none">
-                            <span className="text-[14px] sm:text-[18px] text-[#ec4899] group-hover:text-[#ffec27]">▶</span>
-                          </div>
-                          <span className="text-[6px] sm:text-[7px] text-[#ec4899] group-hover:text-[#ffec27]">SIGN UP</span>
-                          <div className="px-2 py-0.5 text-[5px] sm:text-[6px] uppercase tracking-wider bg-[#ec4899] text-[#111827] group-hover:bg-[#ffec27] transition-none">
-                            join
-                          </div>
-                        </div>
-                      )}
-                      {/* Slot 2: Invite friend */}
-                      <div className="flex flex-col items-center gap-2 w-[70px] sm:w-[90px]">
-                        <div className="w-full aspect-square flex items-center justify-center border-4 border-dashed border-[#6366f144] bg-[#111827]">
+              <PixelBox color="#6366f1" className="bg-[#1c2444] p-5 sm:p-8">
+
+                {/* ── Mobile: 2x2 grid (you/mystery per row) ── */}
+                <div className="sm:hidden">
+                  <div className="grid grid-cols-2 gap-4 mb-3">
+                    <p className="text-[#6366f1] text-[8px] text-center uppercase tracking-wider">your duo</p>
+                    <p className="text-[#ec4899] text-[8px] text-center uppercase tracking-wider">mystery duo</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mb-3">
+                    {pendingSignup ? (
+                      <div className="flex flex-col items-center gap-2 cursor-pointer group"
+                        onClick={() => { window.location.href = `https://ig.me/m/ditto.test?ref=signup_${pendingSignup.code}`; }}>
+                        <div className="w-full aspect-square flex items-center justify-center border-4 border-dashed border-[#ffec27] bg-[#111827]"
+                          style={{ animation: "arcade-glow 2s ease-in-out infinite" }}>
                           <div className="flex flex-col items-center gap-1">
-                            <span className="text-[16px] sm:text-[20px] text-[#6366f166]">+</span>
-                            <span className="text-[5px] sm:text-[6px] text-[#6366f144]">YOUR FRIEND</span>
+                            <span className="text-[7px] text-[#ffec27]">{pendingSignup.name.split(" ")[0]}</span>
                           </div>
                         </div>
-                        <span className="text-[6px] sm:text-[7px] text-[#64748b]">FRIEND</span>
+                        <div className="px-3 py-1 text-[7px] uppercase tracking-wider bg-[#ffec27] text-[#111827]">DM DITTO</div>
                       </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 cursor-pointer group" onClick={() => navigate("/signup")}>
+                        <div className="w-full aspect-square flex items-center justify-center border-4 border-dashed border-[#ec4899] bg-[#111827] group-hover:border-[#ffec27] transition-none">
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-[18px] text-[#ec4899] group-hover:text-[#ffec27]">▶</span>
+                            <span className="text-[7px] text-[#ec4899] group-hover:text-[#ffec27]">SIGN UP</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-full aspect-square flex items-center justify-center border-4 border-dashed border-[#ec489944] bg-[#111827]">
+                        <span className="text-[18px] text-[#ec489944]">?</span>
+                      </div>
+                      <span className="text-[7px] text-[#64748b]">???</span>
                     </div>
                   </div>
-
-                  <VsBadge />
-
-                  {/* Girls side — mystery */}
-                  <div className="text-center flex-1">
-                    <p className="text-[#ec4899] text-[7px] sm:text-[8px] mb-3 uppercase">girls</p>
-                    <div className="flex justify-center gap-3 sm:gap-4">
-                      {[1, 2].map(i => (
-                        <div key={i} className="flex flex-col items-center gap-2 w-[70px] sm:w-[90px]">
-                          <div className="w-full aspect-square flex items-center justify-center border-4 border-dashed border-[#ec489944] bg-[#111827]">
-                            <span className="text-[16px] sm:text-[20px] text-[#ec489944]">?</span>
-                          </div>
-                          <span className="text-[6px] sm:text-[7px] text-[#64748b]">???</span>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-full aspect-square flex items-center justify-center border-4 border-dashed border-[#6366f144] bg-[#111827]">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-[18px] text-[#6366f166]">+</span>
+                          <span className="text-[7px] text-[#6366f144]">YOUR FRIEND</span>
                         </div>
-                      ))}
+                      </div>
+                      <span className="text-[7px] text-[#64748b]">FRIEND</span>
+                    </div>
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-full aspect-square flex items-center justify-center border-4 border-dashed border-[#ec489944] bg-[#111827]">
+                        <span className="text-[18px] text-[#ec489944]">?</span>
+                      </div>
+                      <span className="text-[7px] text-[#64748b]">???</span>
+                    </div>
+                  </div>
+                  {/* VS mobile */}
+                  <div className="flex items-center justify-center my-4">
+                    <div className="flex-1 h-[2px] bg-[#6366f1]/20" />
+                    <span className="px-4 text-[14px] text-[#ffec27]" style={{ ...px, textShadow: "2px 2px 0 #A16207" }}>VS</span>
+                    <div className="flex-1 h-[2px] bg-[#ec4899]/20" />
+                  </div>
+                </div>
+
+                {/* ── Desktop: [you + friend] VS [??? + ???] horizontal ── */}
+                <div className="hidden sm:block">
+                  <div className="flex items-center justify-center gap-4 max-w-[700px] mx-auto">
+                    {/* Your duo side */}
+                    <div className="w-[240px]">
+                      <p className="text-[#6366f1] text-[9px] text-center uppercase tracking-wider mb-3">your duo</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        {pendingSignup ? (
+                          <div className="flex flex-col items-center gap-2 cursor-pointer group"
+                            onClick={() => { window.location.href = `https://ig.me/m/ditto.test?ref=signup_${pendingSignup.code}`; }}>
+                            <div className="w-full aspect-square flex items-center justify-center border-4 border-dashed border-[#ffec27] bg-[#111827]"
+                              style={{ animation: "arcade-glow 2s ease-in-out infinite" }}>
+                              <span className="text-[8px] text-[#ffec27]">{pendingSignup.name.split(" ")[0]}</span>
+                            </div>
+                            <div className="px-3 py-1 text-[7px] uppercase tracking-wider bg-[#ffec27] text-[#111827]">DM DITTO</div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-2 cursor-pointer group" onClick={() => navigate("/signup")}>
+                            <div className="w-full aspect-square flex items-center justify-center border-4 border-dashed border-[#ec4899] bg-[#111827] group-hover:border-[#ffec27] transition-none">
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="text-[22px] text-[#ec4899] group-hover:text-[#ffec27]">▶</span>
+                                <span className="text-[8px] text-[#ec4899] group-hover:text-[#ffec27]">SIGN UP</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="w-full aspect-square flex items-center justify-center border-4 border-dashed border-[#6366f144] bg-[#111827]">
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="text-[22px] text-[#6366f166]">+</span>
+                              <span className="text-[7px] text-[#6366f144]">FRIEND</span>
+                            </div>
+                          </div>
+                          <span className="text-[7px] text-[#64748b]">FRIEND</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* VS */}
+                    <div className="flex flex-col items-center gap-2 shrink-0">
+                      <div className="w-[2px] h-6" style={{ background: "linear-gradient(180deg, transparent, #6366f144)" }} />
+                      <span className="text-[18px] text-[#ffec27] px-3 py-2 border-4 border-[#ffec27]"
+                        style={{ ...px, textShadow: "2px 2px 0 #A16207", background: "#111827", boxShadow: "4px 4px 0 #A16207" }}>VS</span>
+                      <div className="w-[2px] h-6" style={{ background: "linear-gradient(180deg, #ec489944, transparent)" }} />
+                    </div>
+
+                    {/* Mystery duo side */}
+                    <div className="w-[240px]">
+                      <p className="text-[#ec4899] text-[9px] text-center uppercase tracking-wider mb-3">mystery duo</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        {[1, 2].map(i => (
+                          <div key={i} className="flex flex-col items-center gap-2">
+                            <div className="w-full aspect-square flex items-center justify-center border-4 border-dashed border-[#ec489944] bg-[#111827]">
+                              <span className="text-[22px] text-[#ec489944]">?</span>
+                            </div>
+                            <span className="text-[7px] text-[#64748b]">???</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Status */}
-                <div className="mt-6 pt-4 border-t-2 border-[#6366f1]/20 text-center">
+                <div className="text-center">
                   {pendingSignup ? (
                     <>
-                      <p className="text-[#ffec27] text-[8px] sm:text-[10px] leading-[2]">
-                        DM @ditto_ucr your code to finish signing up
+                      <p className="text-[#ffec27] text-[9px] sm:text-[10px] leading-[2]">
+                        DM @ditto.test your code to finish signing up
                       </p>
-                      <p className="text-[20px] sm:text-[24px] tracking-[0.3em] text-[#ffec27] select-all mt-1" style={px}>{pendingSignup.code}</p>
+                      <p className="text-[22px] sm:text-[26px] tracking-[0.3em] text-[#ffec27] select-all mt-1" style={px}>{pendingSignup.code}</p>
                     </>
                   ) : (
-                    <p className="text-[#444] text-[8px] sm:text-[10px] leading-[2]">
+                    <p className="text-[#64748b] text-[9px] sm:text-[10px] leading-[2]">
                       sign up to claim your slot.<br />
                       <span className="text-[#ffec27]">grab a friend and get matched every wednesday.</span>
                     </p>
@@ -620,7 +684,7 @@ export function DoublesPage() {
           {/* ── Create Lobby — inline in hero ── */}
           {view === "creating" && (
             <div className="max-w-sm mx-auto">
-              <PixelBox color="#ec4899" className="bg-[#1c2444] p-5 sm:p-8" beam>
+              <PixelBox color="#ec4899" className="bg-[#1c2444] p-5 sm:p-8">
                 <h2 className="text-[14px] sm:text-[18px] text-white mb-1 text-center" style={serif}>start a lobby</h2>
                 <p className="text-[#64748b] text-[7px] sm:text-[8px] mb-5 text-center">enter your info to create a party</p>
                 <div className="space-y-3">
@@ -660,7 +724,7 @@ export function DoublesPage() {
           {/* ── Lobby arena — inline in hero ── */}
           {view === "lobby" && (
             <div className="max-w-2xl mx-auto">
-              <PixelBox color="#6366f1" className="bg-[#1c2444] p-4 sm:p-8" beam>
+              <PixelBox color="#6366f1" className="bg-[#1c2444] p-4 sm:p-8">
                 <div className="flex items-center justify-center gap-3 sm:gap-5">
                   <div className="text-center flex-1">
                     <p className="text-[#ec4899] text-[7px] sm:text-[8px] mb-3 uppercase">{mySide === "guy" ? "guys" : "girls"}</p>
@@ -718,7 +782,7 @@ export function DoublesPage() {
           {/* ── Pending: form done, need to DM ditto ── */}
           {view === "pending" && pendingSignup && (
             <div className="max-w-2xl mx-auto">
-              <PixelBox color="#6366f1" className="bg-[#1c2444] p-4 sm:p-8" beam>
+              <PixelBox color="#6366f1" className="bg-[#1c2444] p-4 sm:p-8">
                 <div className="flex items-center justify-center gap-3 sm:gap-5">
                   {/* Your side */}
                   <div className="text-center flex-1">
@@ -728,7 +792,7 @@ export function DoublesPage() {
                     <div className="flex justify-center gap-3 sm:gap-4">
                       {/* Slot 1: YOU — needs to DM */}
                       <div className="flex flex-col items-center gap-2 w-[70px] sm:w-[90px] cursor-pointer group"
-                        onClick={() => window.open("https://ig.me/m/ditto_ucr?ref=signup_" + pendingSignup.code, "_blank")}>
+                        onClick={() => window.open("https://ig.me/m/ditto.test?ref=signup_" + pendingSignup.code, "_blank")}>
                         <div className="w-full aspect-square flex items-center justify-center border-4 border-dashed border-[#ffec27] bg-[#111827] group-hover:bg-[#1c2444] transition-none"
                           style={{ animation: "arcade-glow 2s ease-in-out infinite" }}>
                           <div className="flex flex-col items-center gap-1">
@@ -775,14 +839,14 @@ export function DoublesPage() {
 
                 <div className="mt-6 pt-4 border-t-2 border-[#6366f1]/20 text-center">
                   <p className="text-[#ffec27] text-[8px] sm:text-[10px] leading-[2]">
-                    DM @ditto_ucr your code to finish signing up
+                    DM @ditto.test your code to finish signing up
                   </p>
                   <p className="text-[24px] sm:text-[28px] tracking-[0.3em] text-[#ffec27] select-all mt-2" style={px}>{pendingSignup.code}</p>
                 </div>
               </PixelBox>
 
               <div className="mt-6 text-center">
-                <a href={`https://ig.me/m/ditto_ucr?ref=signup_${pendingSignup.code}`}
+                <a href={`https://ig.me/m/ditto.test?ref=signup_${pendingSignup.code}`}
                   className="inline-flex items-center justify-center gap-3 px-6 py-3 bg-white hover:bg-gray-100 active:scale-[0.98] transition-transform"
                   style={{ borderRadius: "50px", textDecoration: "none" }}>
                   <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
@@ -790,7 +854,7 @@ export function DoublesPage() {
                     <path d="M14 8.87c-2.8 0-5.13 2.3-5.13 5.13S11.2 19.13 14 19.13 19.13 16.83 19.13 14 16.8 8.87 14 8.87zm0 8.47a3.34 3.34 0 110-6.68 3.34 3.34 0 010 6.68z" fill="white"/>
                   </svg>
                   <span className="text-[#111827] text-[13px]" style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800 }}>
-                    Open @ditto_ucr
+                    Open @ditto.test
                   </span>
                 </a>
               </div>
@@ -806,12 +870,15 @@ export function DoublesPage() {
       </section>
 
       {/* Spacer so content scrolls over the sticky hero */}
-      <div className="h-[140svh] relative z-0 pointer-events-none" />
+      <div className="h-[100svh] relative z-0 pointer-events-none" />
 
       {/* ════════════════════════════════════════════════════════════
           SCROLL SECTIONS
           ════════════════════════════════════════════════════════════ */}
       <div className="relative z-20">
+        {/* Fade from hero into content */}
+        <div className="h-[120px] -mt-[120px] relative z-20 pointer-events-none"
+          style={{ background: "linear-gradient(to bottom, transparent, #111827)" }} />
 
         {/* Shadows background wrap */}
         <div className="relative"
@@ -833,7 +900,7 @@ export function DoublesPage() {
               <p className="text-center text-[#ec4899] text-[9px] sm:text-[11px] mb-12 sm:mb-16">— SELECT STAGE —</p>
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
                 {[
-                  { n: "01", title: "sign up", desc: "fill out the form + DM @ditto_ucr on IG", color: "#ec4899" },
+                  { n: "01", title: "sign up", desc: "fill out the form + DM @ditto.test on IG", color: "#ec4899" },
                   { n: "02", title: "invite your duo", desc: "forward the invite to your friend on instagram", color: "#6366f1" },
                   { n: "03", title: "the wednesday drop", desc: "we match your duo with another duo", color: "#ffec27" },
                   { n: "04", title: "show up", desc: "4 people, 1 night. zero awkwardness.", color: "#00e436" },
@@ -860,7 +927,7 @@ export function DoublesPage() {
             <div className="relative mx-auto" style={{ height: "clamp(380px, 65vw, 580px)", maxWidth: "800px" }}>
               <div className="absolute left-[0%] sm:left-[2%] top-[0%] w-[48%] sm:w-[44%]" style={{ transform: "rotate(-4deg)", zIndex: 2 }}>
                 <div className="rounded-lg sm:rounded-xl overflow-hidden shadow-2xl">
-                  <img src="/dinner.jpg" alt="" className="w-full aspect-[4/3] object-cover block" style={{ filter: "brightness(0.85) contrast(1.05)" }} />
+                  <img src="/dinner.jpg" alt="" className="w-full aspect-square object-cover block" style={{ filter: "brightness(0.85) contrast(1.05)" }} />
                 </div>
               </div>
               <div className="absolute right-[0%] sm:right-[2%] top-[4%] w-[46%] sm:w-[42%]" style={{ transform: "rotate(3deg)", zIndex: 1 }}>
@@ -870,12 +937,12 @@ export function DoublesPage() {
               </div>
               <div className="absolute left-[12%] sm:left-[18%] bottom-[0%] w-[52%] sm:w-[46%]" style={{ transform: "rotate(1.5deg)", zIndex: 4 }}>
                 <div className="rounded-lg sm:rounded-xl overflow-hidden shadow-2xl">
-                  <img src="/happy.jpg" alt="" className="w-full aspect-[4/3] object-cover block" style={{ filter: "brightness(0.9) contrast(1.05)" }} />
+                  <img src="/happy.jpg" alt="" className="w-full aspect-square object-cover block" style={{ filter: "brightness(0.9) contrast(1.05)" }} />
                 </div>
               </div>
               <div className="absolute right-[0%] sm:right-[4%] bottom-[2%] w-[38%] sm:w-[34%]" style={{ transform: "rotate(-2.5deg)", zIndex: 3 }}>
                 <div className="rounded-lg sm:rounded-xl overflow-hidden shadow-2xl">
-                  <img src="/nighttime.jpg" alt="" className="w-full aspect-[4/3] object-cover block" style={{ filter: "brightness(0.8) contrast(1.1)" }} />
+                  <img src="/nighttime.jpg" alt="" className="w-full aspect-square object-cover block" style={{ filter: "brightness(0.8) contrast(1.1)" }} />
                 </div>
               </div>
             </div>
@@ -909,7 +976,7 @@ export function DoublesPage() {
                   e.currentTarget.style.setProperty("--mouse-x", `${e.clientX - rect.left}px`);
                   e.currentTarget.style.setProperty("--mouse-y", `${e.clientY - rect.top}px`);
                 }}>
-              <PixelBox color="#6366f1" className="bg-[#1c2444] p-5 sm:p-12" beam>
+              <PixelBox color="#6366f1" className="bg-[#1c2444] p-5 sm:p-12">
                 <div className="flex flex-col lg:flex-row items-center lg:items-start gap-8 sm:gap-12 lg:gap-16">
 
                   {/* Mock Instagram DM conversation */}
@@ -1011,10 +1078,10 @@ export function DoublesPage() {
                     <p className="text-[#ec4899] text-[9px] sm:text-[11px] mb-4 sm:mb-5">no app needed</p>
                     <h2 className="text-[20px] sm:text-[32px] lg:text-[40px] text-[#ffffff] leading-[1.4] mb-4 sm:mb-5"
                       style={{ ...serif, textShadow: "0 0 20px #ffffff22" }}>
-                      x2 lives in your DMs.
+                      doubles lives in your DMs.
                     </h2>
                     <p className="text-[#cbd5e1] text-[9px] sm:text-[11px] leading-[2.2] max-w-sm">
-                      we match your duo with another duo, plan the double date, and DM you everything through @ditto_ucr on instagram. all 4 of you just show up.
+                      we match your duo with another duo, plan the double date, and DM you everything through @ditto.test on instagram. all 4 of you just show up.
                     </p>
                     <div className="mt-6 sm:mt-8 inline-block bg-[#6366f1] text-[#1c2444] px-3 sm:px-4 py-2 text-[9px] sm:text-[11px]"
                       style={{ boxShadow: "0 0 12px #6366f144" }}>
@@ -1045,7 +1112,7 @@ export function DoublesPage() {
           <section className="py-16 sm:py-24 px-4 sm:px-6">
             <div className="max-w-lg mx-auto">
               <p className="text-[#64748b] text-[6px] sm:text-[8px] mb-4 tracking-widest text-center">EXAMPLE LOBBY</p>
-              <PixelBox color="#6366f1" className="bg-[#1c2444] p-4 sm:p-6" beam>
+              <PixelBox color="#6366f1" className="bg-[#1c2444] p-4 sm:p-6">
                 <div className="flex items-center justify-center gap-2 sm:gap-4">
                   <div className="text-center flex-1">
                     <p className="text-[#6366f1] text-[6px] sm:text-[7px] mb-3 uppercase">guys</p>
@@ -1100,7 +1167,7 @@ export function DoublesPage() {
               <div className="max-w-2xl mx-auto bg-[#1c2444]/40 border-4 border-[#6366f1]/20 p-5 sm:p-10">
                 <h2 className="text-[#ffffff] text-[14px] sm:text-[20px] mb-6 sm:mb-8">FAQ</h2>
                 <FaqItem q="How does it work?" a="You and a friend sign up as a duo. Every Wednesday we match your duo with another duo and plan the double date — all through Instagram DMs." />
-                <FaqItem q="Do I need an app?" a="No. Everything happens through Instagram DMs with @ditto_ucr and this website." />
+                <FaqItem q="Do I need an app?" a="No. Everything happens through Instagram DMs with @ditto.test and this website." />
                 <FaqItem q="Do I need a teammate?" a="Yes — grab a friend and sign up together. That's the whole point." />
                 <FaqItem q="What if we don't like our match?" a="Reply 'no' when Ditto asks. Both duos go back in the pool for next week." />
                 <FaqItem q="Is it free?" a="Yes." />
@@ -1120,12 +1187,23 @@ export function DoublesPage() {
                 className="mt-10 sm:mt-14 mx-auto flex items-center justify-center gap-3 px-8 sm:px-10 py-3.5 sm:py-4 bg-white hover:bg-gray-100 active:scale-[0.97] transition-transform"
                 style={{ borderRadius: "50px" }}
               >
-                <svg width="24" height="24" viewBox="0 0 28 28" fill="none" style={{ flexShrink: 0 }}>
-                  <rect width="28" height="28" rx="6" fill="#E1306C" />
-                  <path d="M14 8.87c-2.8 0-5.13 2.3-5.13 5.13S11.2 19.13 14 19.13 19.13 16.83 19.13 14 16.8 8.87 14 8.87zm0 8.47a3.34 3.34 0 110-6.68 3.34 3.34 0 010 6.68zm5.34-8.68a1.2 1.2 0 11-2.4 0 1.2 1.2 0 012.4 0zM21.94 10.06a5.26 5.26 0 00-1.32-1.87 5.26 5.26 0 00-1.87-1.32A6.6 6.6 0 0016.56 6.5c-.87-.04-1.14-.05-3.36-.05h-.4c-2.22 0-2.49.01-3.36.05a6.6 6.6 0 00-2.19.37 5.26 5.26 0 00-1.87 1.32A5.26 5.26 0 004.06 10.06a6.6 6.6 0 00-.37 2.19c-.04.87-.05 1.14-.05 3.36v.4c0 2.22.01 2.49.05 3.36.02.76.17 1.28.37 2.19a5.26 5.26 0 001.32 1.87 5.26 5.26 0 001.87 1.32c.57.2 1.07.35 2.19.37.87.04 1.14.05 3.36.05h.4c2.22 0 2.49-.01 3.36-.05a6.6 6.6 0 002.19-.37 5.26 5.26 0 001.87-1.32 5.26 5.26 0 001.32-1.87c.2-.57.35-1.07.37-2.19.04-.87.05-1.14.05-3.36v-.4c0-2.22-.01-2.49-.05-3.36a6.6 6.6 0 00-.37-2.19z" fill="white"/>
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none" style={{ flexShrink: 0 }}>
+                  <defs>
+                    <radialGradient id="ig-grad-cta" cx="30%" cy="107%" r="150%">
+                      <stop offset="0%" stopColor="#fdf497"/>
+                      <stop offset="5%" stopColor="#fdf497"/>
+                      <stop offset="45%" stopColor="#fd5949"/>
+                      <stop offset="60%" stopColor="#d6249f"/>
+                      <stop offset="90%" stopColor="#285AEB"/>
+                    </radialGradient>
+                  </defs>
+                  <rect width="28" height="28" rx="7" fill="url(#ig-grad-cta)" />
+                  <rect x="5.5" y="5.5" width="17" height="17" rx="5" stroke="white" strokeWidth="2" fill="none"/>
+                  <circle cx="14" cy="14" r="4" stroke="white" strokeWidth="2" fill="none"/>
+                  <circle cx="19.5" cy="8.5" r="1.5" fill="white"/>
                 </svg>
                 <span className="text-[#111827] text-[14px] sm:text-[16px]" style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800 }}>
-                  DM @ditto_ucr
+                  DM @ditto.test
                 </span>
               </button>
             </div>

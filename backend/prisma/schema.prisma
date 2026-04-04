@@ -306,6 +306,7 @@ model BublProfile {
   id                  String    @id @default(uuid())
   phone               String?   @unique
   ig_id               String?   @unique
+  email               String?
   instagram_username  String?
   name                String
   age                 Int?

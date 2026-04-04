@@ -235,7 +235,7 @@ export function InvitePage() {
         {/* Nav */}
         <nav className="border-b-4 border-[#7C3AED] bg-[#12081F]/95">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
-            <button onClick={() => navigate("/")} className="text-[#8B5CF6] text-[14px] sm:text-[18px]">x2</button>
+            <button onClick={() => navigate("/")} className="text-[#8B5CF6] text-[14px] sm:text-[18px]">doubles</button>
             <div className="flex items-center gap-2 sm:gap-4">
               <button onClick={() => navigate("/signin")} className="text-[#A5B4C8] text-[7px] sm:text-[9px] hover:text-[#FACC15] transition-none">
                 &gt;&gt; [ SIGN IN ]
@@ -296,15 +296,15 @@ export function InvitePage() {
           {/* Message */}
           <p className="text-[#A5B4C8] text-[7px] sm:text-[10px] text-center leading-[2] sm:leading-[2.2] max-w-xs sm:max-w-sm px-2 break-words">
             {teamFull
-              ? "Both teammates are in! x2 will find your match and DM you on wednesday."
-              : "Invite your friend to join your team. Once both slots are filled, x2 will find your match!"
+              ? "Both teammates are in! ditto will find your match and DM you on wednesday."
+              : "Invite your friend to join your team. Once both slots are filled, ditto will find your match!"
             }
           </p>
 
           {/* Buttons */}
           {teamFull ? (
             <a
-              href="https://ig.me/m/x2byditto"
+              href="https://ig.me/m/ditto.test"
               className="px-6 sm:px-8 py-3 sm:py-4 text-[9px] sm:text-[13px] active:translate-x-[2px] active:translate-y-[2px] inline-block text-center"
               style={{
                 border: "4px solid #34D399",
@@ -313,7 +313,7 @@ export function InvitePage() {
                 boxShadow: "4px 4px 0 #065F46",
               }}
             >
-              &gt; READY UP — DM @x2byditto
+              &gt; READY UP — DM @ditto.test
             </a>
           ) : (
             <button
@@ -335,7 +335,7 @@ export function InvitePage() {
             className="text-[#6B7280] text-[7px] sm:text-[8px] uppercase"
             style={{ animation: "blink-pixel 1.5s step-end infinite" }}
           >
-            {teamFull ? "dm @x2byditto to ready up..." : "waiting for player 2..."}
+            {teamFull ? "dm @ditto.test to ready up..." : "waiting for player 2..."}
           </p>
         </div>
       </div>
