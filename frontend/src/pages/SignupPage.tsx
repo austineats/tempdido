@@ -132,14 +132,7 @@ export function SignupPage() {
         return;
       }
 
-      // User B: profile saved + linked to team — go straight to party
-      if (isUserB && data?.team_code) {
-        localStorage.setItem("ditto-team-code", data.team_code);
-        localStorage.removeItem("ditto-pending-signup");
-        setSubmitting(false);
-        navigate(`/party/${data.team_code}`);
-        return;
-      }
+      // User B: profile saved + linked to team — still show DM screen so IG gets linked
     } catch (e) {
       // Retry once in case ngrok interstitial blocked the first request
       try {
@@ -152,13 +145,7 @@ export function SignupPage() {
         if (duoCode) fd2.append("duo_code", duoCode);
         const retry = await fetch(`${API}/api/bubl/profile`, { method: "POST", body: fd2 });
         const retryData = await retry.json().catch(() => null);
-        if (isUserB && retryData?.team_code) {
-          localStorage.setItem("ditto-team-code", retryData.team_code);
-          localStorage.removeItem("ditto-pending-signup");
-          setSubmitting(false);
-          navigate(`/party/${retryData.team_code}`);
-          return;
-        }
+        // retry succeeded — continue to DM screen
       } catch {
         console.error("[signup] Retry also failed:", e);
       }

@@ -32,8 +32,8 @@ function Particles() {
 }
 
 /* ─── Glowing player card ─── */
-function PlayerCard({ name, ready, color, glow }: {
-  name: string; ready: boolean; color: string; glow: boolean;
+function PlayerCard({ name, ready, color, glow, isYou }: {
+  name: string; ready: boolean; color: string; glow: boolean; isYou?: boolean;
 }) {
   return (
     <div className="flex flex-col items-center gap-2 animate-fade-up">
@@ -48,9 +48,11 @@ function PlayerCard({ name, ready, color, glow }: {
           style={{ background: `linear-gradient(135deg, transparent 40%, ${color}33 50%, transparent 60%)`, animation: "shimmer 3s ease-in-out infinite" }} />
         <div className="flex flex-col items-center gap-2 relative z-10">
           <span className="text-[20px] sm:text-[24px]">{ready ? "✓" : "🎮"}</span>
-          <span className="text-[10px] sm:text-[12px]" style={{ ...px, color: ready ? "#00e436" : color }}>{name}</span>
         </div>
       </div>
+      <span className="text-[8px] sm:text-[9px] text-center w-full whitespace-nowrap" style={{ ...px, color: ready ? "#00e436" : color }}>
+        {name}{isYou ? " (you)" : ""}
+      </span>
     </div>
   );
 }
@@ -261,7 +263,7 @@ export function PartyPage() {
                   <p className="text-[#ec4899] text-[8px] text-center uppercase tracking-[0.2em]">mystery duo</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4 mb-3">
-                  <PlayerCard name={player1.name.split(" ")[0]} ready={player1.ready} color="#6366f1" glow />
+                  <PlayerCard name={player1.name.split(" ")[0]} ready={player1.ready} color="#6366f1" glow isYou />
                   <MysteryCard />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -276,13 +278,13 @@ export function PartyPage() {
 
               {/* ── Desktop: [guy guy] VS [girl girl] horizontal ── */}
               <div className="hidden sm:block">
-                <div className="flex items-center justify-center gap-6">
+                <div className="flex items-center justify-center gap-4 max-w-[700px] mx-auto">
                   {/* Guys side */}
-                  <div className="flex-1">
+                  <div className="w-[240px]">
                     <p className="text-[#6366f1] text-[10px] text-center uppercase tracking-[0.3em] mb-4"
                       style={{ textShadow: "0 0 10px #6366f144" }}>your duo</p>
                     <div className="grid grid-cols-2 gap-4">
-                      <PlayerCard name={player1.name.split(" ")[0]} ready={player1.ready} color="#6366f1" glow />
+                      <PlayerCard name={player1.name.split(" ")[0]} ready={player1.ready} color="#6366f1" glow isYou />
                       {teamFull ? (
                         <PlayerCard name={player2!.name.split(" ")[0]} ready={player2!.ready} color="#6366f1" glow />
                       ) : (
@@ -302,7 +304,7 @@ export function PartyPage() {
                   </div>
 
                   {/* Girls side */}
-                  <div className="flex-1">
+                  <div className="w-[240px]">
                     <p className="text-[#ec4899] text-[10px] text-center uppercase tracking-[0.3em] mb-4"
                       style={{ textShadow: "0 0 10px #ec489944" }}>mystery duo</p>
                     <div className="grid grid-cols-2 gap-4">

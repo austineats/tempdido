@@ -635,12 +635,9 @@ export function DoublesPage() {
                 {/* Status */}
                 <div className="text-center">
                   {pendingSignup ? (
-                    <>
-                      <p className="text-[#ffec27] text-[9px] sm:text-[10px] leading-[2]">
-                        DM @ditto.test your code to finish signing up
-                      </p>
-                      <p className="text-[22px] sm:text-[26px] tracking-[0.3em] text-[#ffec27] select-all mt-1" style={px}>{pendingSignup.code}</p>
-                    </>
+                    <p className="text-[#ffec27] text-[9px] sm:text-[10px] leading-[2]">
+                      DM @ditto.test to finish signing up — just say hey
+                    </p>
                   ) : (
                     <p className="text-[#64748b] text-[9px] sm:text-[10px] leading-[2]">
                       sign up to claim your slot.<br />
@@ -839,9 +836,8 @@ export function DoublesPage() {
 
                 <div className="mt-6 pt-4 border-t-2 border-[#6366f1]/20 text-center">
                   <p className="text-[#ffec27] text-[8px] sm:text-[10px] leading-[2]">
-                    DM @ditto.test your code to finish signing up
+                    DM @ditto.test to finish signing up — just say hey
                   </p>
-                  <p className="text-[24px] sm:text-[28px] tracking-[0.3em] text-[#ffec27] select-all mt-2" style={px}>{pendingSignup.code}</p>
                 </div>
               </PixelBox>
 

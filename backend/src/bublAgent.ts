@@ -182,46 +182,48 @@ function buildSystemPrompt(
 
   const SIGNUP_LINK = `${SITE_URL}/signup`;
 
-  return `You are Ditto. you run doubles — a 2v2 blind date thing at UCR. you match duos every wednesday thru instagram dms.
+  return `You are Ditto. you run doubles — a 2v2 blind date thing at UCR. you match duos every wednesday thru ig dms.
 
-VIBE:
-- you text like a college student. lowercase everything. no periods
-- you're that friend who's always tryna set people up. funny, a lil chaotic, lowkey unhinged
-- use slang NATURALLY not forced — "fr" "ngl" "lowkey" "bet" "tho" "fs" "ong" "is crazy" "I see you"
-- emojis: only 😭 and 👀 occasionally. never 🎯🔥🔒💯 those are corporate
-- if they ask random shit (math, cooking, life advice) ACTUALLY engage with it in a funny way before redirecting. dont dodge their question
-- example: them: "whats 3+8" you: "11 but the real math is u + finishing signup = actually getting matched fr"
-- NEVER sound like a bot. NEVER sound like marketing. no "lock in" no "let's get you matched" no "finalize"
+YOU TEXT LIKE:
+- a college student who texts a LOT. lowercase everything. no periods
+- you react big but in a neutral way — "bro WHAT" "nah thats crazy" "wait hold on" "no way" "LMAO" "dawg"
+- you abbreviate — "u" "ur" "rn" "ngl" "fr" "bc" "w" "n" "ab" "tbh" "wym" "lowkey" "highkey"
+- you're funny and a lil chaotic. you tease people but its all love
+- "bro u asking me math questions rn 😭" "dawg sign up first THEN we can talk"
+- if someone says smth random u go "nah what 😭" then play along then redirect
+- use 😭 and 😭 sometimes. never 🎯🔥🔒💯 those are corporate
+- NEVER sound corporate or robotic. no "let's get you matched" no "finalize" no "lock in"
 - you ARE ditto. if asked say "bro i literally just set up dates lol"
+- use their name casually sometimes. not every message
 
 FORMAT:
 - EXACTLY 2 messages split by |||
-- first msg: actually react to what they said. be witty. make it personal
-- second msg: redirect to next step but make it feel natural, not copy-pasted
-- NEVER use the same redirect phrasing twice. here are examples of different ways to redirect:
-  "do it real quick here tho ${SIGNUP_LINK}"
-  "stop playing and sign up ${SIGNUP_LINK}"
-  "but fr tho fill this out first ${SIGNUP_LINK}"
-  "handle this real quick n ur good ${SIGNUP_LINK}"
-  "anyway sign up w a friend here ${SIGNUP_LINK}"
-- each msg = 1-2 SHORT sentences max. like an actual imessage text
+- first msg: react to what they said. keep it real n funny
+- second msg: redirect but make it casual. vary it EVERY time:
+  "nah but fr fill this out rn ${SIGNUP_LINK}"
+  "bro just sign up already 😭 ${SIGNUP_LINK}"
+  "aight do this real quick tho ${SIGNUP_LINK}"
+  "dawg just handle this ${SIGNUP_LINK}"
+  "ok but actually do this first ${SIGNUP_LINK}"
+  "its not that deep just sign up ${SIGNUP_LINK}"
+- each msg = 1 short punchy text. like an actual snap/ig dm. not a paragraph
 - NEVER 3+ messages
 
-WHAT DOUBLES IS:
+DOUBLES:
 - u + a friend = duo. ditto matches ur duo w another duo every wednesday
-- 2v2 double date. less awkward more fun
-- all thru ig dms no app
+- 2v2 double date. less awkward more fun. all thru ig dms
 - ${SIGNUP_LINK}
 
 ${dayOfWeek} ${timeOfDay}
 ${context}
 
-CRITICAL RULES:
-- if not signed up, second msg MUST include ${SIGNUP_LINK} but phrase it differently EVERY time
-- look at ur previous messages in the convo and NEVER reuse the same phrasing
-- actually be funny. if they say something random, play along THEN redirect
-- dont be cringe dont be corporate dont lecture dont be repetitive
-- late night = shorter chiller. daytime = more energy`;
+RULES:
+- if not signed up, second msg MUST include ${SIGNUP_LINK} but NEVER same phrasing twice
+- look at previous messages and switch up ur wording every single time
+- be funny. react naturally not over the top
+- if they say something off topic go "nah what 😭" then vibe w it then bring it back
+- late night = chill lowkey vibes. daytime = more energy
+- never be dry. never be boring. never sound like chatgpt or a marketing bot`;
 }
 
 // ─── Generate reply via LLM ───
@@ -344,6 +346,21 @@ async function processMessages(senderId: string) {
     console.warn("[ditto] Could not fetch IG profile:", e instanceof Error ? e.message : e);
   }
 
+  // ── Already registered + has team? Just send lobby link ──
+  if (user && team) {
+    const name = firstName || "yo";
+    const partyLink = `${SITE_URL}/party/${team.code}`;
+    const msg = combinedText.toLowerCase();
+    // Check if they're saying hey/greeting — just send lobby
+    if (msg.match(/^(hey|hi|yo|sup|hello|whats up|wassup|wsp)/)) {
+      const replies = [`${name} u already in lol`, `ur lobby: ${partyLink}`];
+      await sendReplies(senderId, replies);
+      await saveMessage(senderId, "user", combinedText);
+      await saveMessage(senderId, "assistant", replies.join("\n"));
+      return;
+    }
+  }
+
   // ── Signup ref flow: user came from the form with a signup code in the ref ──
   if (ref && ref.startsWith("signup_")) {
     const code = ref.replace("signup_", "");
@@ -408,7 +425,7 @@ async function processMessages(senderId: string) {
         const partyLink = `${SITE_URL}/party/${teamCode}`;
         const replies = [
           `${signupName} ur in`,
-          `forward this to your duo — they just tap it and say hey: https://ig.me/m/ditto.test?ref=invite_${teamCode}`,
+          `send this to ur duo: ${SITE_URL}/signup?duo=${teamCode}`,
           `your lobby: ${partyLink}`,
         ];
         await sendReplies(senderId, replies);
@@ -440,7 +457,7 @@ async function processMessages(senderId: string) {
 
     const signupLink = `${SITE_URL}/signup?duo=${teamCode}`;
     const replies = [
-      `yoo ${inviterName} wants u as their duo`,
+      `yo ${inviterName} wants u as their duo`,
       `fill this out n yall are set for wednesday`,
       signupLink,
     ];
@@ -520,7 +537,7 @@ async function processMessages(senderId: string) {
         const partyLink = `${SITE_URL}/party/${teamCode}`;
         const replies = [
           `${signupName} ur in`,
-          `forward this to your duo — they just tap it and say hey: https://ig.me/m/ditto.test?ref=invite_${teamCode}`,
+          `send this to ur duo: ${SITE_URL}/signup?duo=${teamCode}`,
           `your lobby: ${partyLink}`,
         ];
         await sendReplies(senderId, replies);
@@ -602,7 +619,7 @@ async function processMessages(senderId: string) {
         const partyLink = `${SITE_URL}/party/${teamCode}`;
         const replies = [
           `${signupName} ur in`,
-          `forward this to your duo — they just tap it and say hey: https://ig.me/m/ditto.test?ref=invite_${teamCode}`,
+          `send this to ur duo: ${SITE_URL}/signup?duo=${teamCode}`,
           `your lobby: ${partyLink}`,
         ];
         await sendReplies(senderId, replies);
@@ -623,18 +640,17 @@ async function processMessages(senderId: string) {
     await sleep(800);
     await sendText(senderId, `yoo welcome to doubles`);
     await sleep(600);
-    await sendText(senderId, `wyd here\n\n1️⃣ sign me up\n2️⃣ i got a code\n3️⃣ wait what is this`);
+    await sendText(senderId, `wyd here\n\n1️⃣ sign me up\n2️⃣ what even is this`);
     await saveMessage(senderId, "user", combinedText);
     await saveMessage(senderId, "assistant", "welcome + menu sent");
     logActivity("welcome", firstName || undefined, senderId, "First DM, sent menu");
     return;
   }
 
-  // ── Menu responses: 1 = sign up, 2 = have a code, 3 = what is doubles ──
-  // Also handles ice breaker payloads (ICE_SIGNUP, ICE_CODE, ICE_INFO)
+  // ── Menu responses: 1 = sign up, 2 = what is doubles ──
   if ((lower === "1" || lower.includes("sign me up") || combinedText === "ICE_SIGNUP") && !user) {
     const replies = [
-      `bet lets get u in`,
+      `aight lets get u in`,
       `${SITE_URL}/signup`,
     ];
     await sendReplies(senderId, replies);
@@ -644,21 +660,10 @@ async function processMessages(senderId: string) {
     return;
   }
 
-  if ((lower === "2" || lower.includes("i have a code") || lower.includes("have a code") || combinedText === "ICE_CODE") && !user) {
+  if ((lower === "2" || lower.includes("what is doubles") || lower.includes("what is this") || lower.includes("what even") || combinedText === "ICE_INFO") && !user) {
     const replies = [
-      `drop ur code from the signup page n ill lock u in`,
-    ];
-    await sendReplies(senderId, replies);
-    await saveMessage(senderId, "user", combinedText);
-    await saveMessage(senderId, "assistant", replies.join("\n"));
-    logActivity("menu_code", firstName || undefined, senderId);
-    return;
-  }
-
-  if ((lower === "3" || lower.includes("what is doubles") || lower.includes("what is this") || combinedText === "ICE_INFO") && !user) {
-    const replies = [
-      `so basically u + a friend sign up as a duo and we match u with another duo every wednesday. 2v2 blind date`,
-      `no app or anything its all thru ig dms. wanna get in? ${SITE_URL}/signup`,
+      `so basically u n a friend sign up as a duo and we match u w another duo every wednesday. 2v2 blind date`,
+      `no app or anything its all thru ig dms. u down? ${SITE_URL}/signup`,
     ];
     await sendReplies(senderId, replies);
     await saveMessage(senderId, "user", combinedText);
@@ -718,7 +723,7 @@ async function processMessages(senderId: string) {
         const partyLink = `${SITE_URL}/party/${teamCode}`;
         const replies = [
           `${signupName} ur in`,
-          `forward this to your duo — they just tap it and say hey: https://ig.me/m/ditto.test?ref=invite_${teamCode}`,
+          `send this to ur duo: ${SITE_URL}/signup?duo=${teamCode}`,
           `your lobby: ${partyLink}`,
         ];
         await sendReplies(senderId, replies);
@@ -751,7 +756,7 @@ async function processMessages(senderId: string) {
     const partyLink = `${SITE_URL}/party/${teamCode}`;
     const replies = [
       `${signupName} ur in`,
-      `forward this to your duo — they just tap it and say hey: https://ig.me/m/ditto.test?ref=invite_${teamCode}`,
+      `send this to ur duo: ${SITE_URL}/signup?duo=${teamCode}`,
       `your lobby: ${partyLink}`,
     ];
     await sendReplies(senderId, replies);
@@ -764,7 +769,7 @@ async function processMessages(senderId: string) {
   // User already linked + has team — send them their lobby
   if (isDoneMsg && user && team) {
     const partyLink = `${SITE_URL}/party/${team.code}`;
-    const replies = [`u already in lol heres ur lobby: ${partyLink}`];
+    const replies = [`dawg u already in 😭 ur lobby: ${partyLink}`];
     await sendReplies(senderId, replies);
     await saveMessage(senderId, "user", combinedText);
     await saveMessage(senderId, "assistant", replies.join("\n"));
