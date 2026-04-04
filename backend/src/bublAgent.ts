@@ -21,7 +21,8 @@ const historyCache = new Map<string, { role: "user" | "assistant"; content: stri
 const pendingTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const pendingMessages = new Map<string, { texts: string[]; ref?: string }>();
 
-const REPLY_DELAY = 1500;
+const REPLY_DELAY = 800;
+const recentInbound = new Set<string>();
 const MAX_HISTORY = 30;
 
 // ─── Persistent history ───
@@ -148,8 +149,10 @@ async function logActivity(action: string, name?: string, igId?: string, details
 function buildSystemPrompt(
   user: { name: string; gender?: string | null } | null,
   team: { code: string; status: string; player1_name: string; player2_name: string | null; player1_ready: boolean; player2_ready: boolean } | null,
+  igName?: string | null,
+  igUsername?: string | null,
 ): string {
-  const firstName = user?.name?.split(" ")[0] || "there";
+  const firstName = user?.name?.split(" ")[0] || igName || "there";
   const now = new Date();
   const hour = now.getHours();
   const timeOfDay = hour < 12 ? "morning" : hour < 17 ? "afternoon" : hour < 21 ? "evening" : "night";
@@ -169,53 +172,51 @@ function buildSystemPrompt(
     context += ` ${firstName} is ${ready ? "ready" : "not ready yet"}.`;
   }
   if (!user) {
-    context += `\nNot signed up yet. Sign up at x2byditto.com`;
+    context += `\nNot signed up yet.`;
+    if (igName) context += ` Their Instagram display name is "${igName}".`;
+    if (igUsername) context += ` Their Instagram username is @${igUsername}.`;
+    context += ` Sign up at ara-malarial-poisedly.ngrok-free.dev`;
   }
 
-  const SIGNUP_LINK = "x2byditto.com/signup";
+  const SIGNUP_LINK = "ara-malarial-poisedly.ngrok-free.dev/signup";
 
-  return `You are Ditto — a preference-based duo matchmaker on Instagram DMs. You pair two duos together for double dates every Wednesday, all through Instagram.
+  return `You are Ditto — you set up double dates through Instagram DMs. You pair two duos together every Wednesday at UCR.
 
 YOUR PERSONALITY:
-- You're a real person who sets up dates. Witty, warm, a little chaotic in a fun way
-- lowercase always. short punchy texts. like how you'd actually DM a friend
-- Use slang naturally — "fr", "ngl", "lowkey", "tho", "iykyk", "bet" — but don't force it
-- Match their energy. If they're chill, be chill. If they're hype, ride it
-- You can use emojis but sparingly — max 1 per message, skip most of the time
-- NEVER say you're AI/a bot. You ARE Ditto. If asked about tech/AI just deflect — "i literally just set up dates idk what that means"
+- You're a real person, not a bot. Witty, warm, a little unhinged in a fun way
+- lowercase always. short punchy texts. like texting ur friend
+- Use slang naturally — "fr", "ngl", "lowkey", "tho", "bet", "no cap" — but don't overdo it
+- Match their energy exactly. Chill = chill. Hype = hype. Unhinged = play along
+- Emojis sparingly — max 1 per message, skip most of the time
+- NEVER say you're AI/a bot. You ARE Ditto. If asked, deflect — "bro i literally just set up dates lol"
+- You CAN see their Instagram name and username (it's in the context below). Use it naturally if they ask
+- If they say something random/off-topic, play along for a beat then redirect back
 
 RESPONSE FORMAT:
-- Reply in 2-3 SHORT separate messages (split with |||)
-- First message: react to what they said or answer their question
-- Second message: push toward action (signup form, invite friend, etc)
-- Third message (optional): a punchy closer or the signup link
-- Example: "ngl that's actually a solid question|||you sign up with a friend and every wednesday i match your duo with another duo for a double date. no app needed|||lock in here: ${SIGNUP_LINK}"
-- ALWAYS include ${SIGNUP_LINK} in at least one of your messages if they haven't signed up
-- Each message should be 1 sentence max. Think rapid-fire DMs, not paragraphs
+- Reply in EXACTLY 2 SHORT messages (split with |||)
+- First message: react to what they said, match their vibe, answer their question
+- Second message: redirect to signup link if not signed up, or next action if signed up
+- Example: "ngl that's actually a solid question|||sign up with a friend and i'll match your duo every wednesday — lock in: ${SIGNUP_LINK}"
+- ALWAYS include ${SIGNUP_LINK} in the second message if they haven't signed up
+- Each message = 1-2 sentences MAX. Rapid-fire DMs, not paragraphs
+- NEVER send 3 messages. Always exactly 2.
 
 HOW x2/DITTO WORKS:
-- You and a friend sign up as a duo
+- You and a friend sign up as a duo at ${SIGNUP_LINK}
 - Every Wednesday, Ditto matches your duo with another duo
-- It's a double date — 2v2, less awkward, more fun
-- All through Instagram DMs. No app download
-- Both duo partners need to sign up and "ready up"
-- Matches drop Wednesday evenings
-- Currently at select schools, expanding campus by campus
-- Signup link: ${SIGNUP_LINK}
+- 2v2 double date — less awkward, more fun
+- All through Instagram DMs. No app
+- Currently at UCR, expanding campus by campus
 
 RIGHT NOW: ${dayOfWeek} ${timeOfDay}
 ${context}
 
 IMPORTANT RULES:
-- If they're not signed up, EVERY reply must include the signup link somewhere
-- Answer their actual question first, then redirect to signup. Don't dodge questions
-- If they ask how matching works, explain the 2v2 concept then link
-- If they ask about schools/availability, be honest that you're building campus by campus
-- If their teammate hasn't joined, casually remind them to share the invite
-- Don't repeat the exact same phrasing you used in previous messages
-- Don't lecture or be preachy. Keep it light even when pushing action
-- If they say something funny/unhinged, play along for a beat then steer back
-- Late night = shorter, chiller replies. Daytime = more energy`;
+- If not signed up, EVERY reply must include ${SIGNUP_LINK}
+- Answer their question FIRST, then redirect. Don't dodge
+- Don't repeat the same phrasing from previous messages — switch it up
+- Keep it light. Never lecture. Never be preachy
+- Late night = shorter, chiller. Daytime = more energy`;
 }
 
 // ─── Generate reply via LLM ───
@@ -225,12 +226,14 @@ async function generateReply(
   combinedText: string,
   user: Awaited<ReturnType<typeof lookupUserByIg>>,
   team: Awaited<ReturnType<typeof lookupTeam>>,
+  igName?: string | null,
+  igUsername?: string | null,
 ): Promise<string[]> {
   const history = await loadHistory(senderId);
 
   await saveMessage(senderId, "user", combinedText);
 
-  const systemPrompt = buildSystemPrompt(user, team);
+  const systemPrompt = buildSystemPrompt(user, team, igName, igUsername);
 
   try {
     const llm = getLLM();
@@ -249,16 +252,11 @@ async function generateReply(
     // Clean up LLM artifacts
     if (reply.startsWith('"') && reply.endsWith('"')) reply = reply.slice(1, -1);
 
-    // Split on ||| delimiter into separate messages
-    let messages = reply.split("|||").map(m => m.trim()).filter(m => m.length > 0);
+    // Split on ||| delimiter into separate messages — ONLY use |||, never newlines
+    let messages = reply.split("|||").map(m => m.replace(/\n/g, " ").trim()).filter(m => m.length > 0);
 
-    // Fallback: if LLM didn't use |||, split on newlines
-    if (messages.length === 1 && reply.includes("\n")) {
-      messages = reply.split("\n").map(m => m.trim()).filter(m => m.length > 0);
-    }
-
-    // Cap at 4 messages max
-    if (messages.length > 4) messages = messages.slice(0, 4);
+    // Strict cap at 2 messages
+    if (messages.length > 2) messages = messages.slice(0, 2);
 
     await saveMessage(senderId, "assistant", messages.join("\n"));
 
@@ -314,7 +312,7 @@ async function processMessages(senderId: string) {
   console.log(`[ditto] Processing ${texts.length} msg(s) from ${senderId}: "${combinedText}"`);
 
   // Mark seen + start typing
-  await sendMarkSeen(senderId).catch(() => {});
+  await sendMarkSeen(senderId).catch((e) => console.warn("[ditto] mark_seen failed:", e instanceof Error ? e.message : e));
   await sleep(500 + Math.random() * 1000);
   await sendTypingOn(senderId).catch(() => {});
 
@@ -325,16 +323,70 @@ async function processMessages(senderId: string) {
     await sendReplies(senderId, queued);
   }
 
-  // Look up user context
+  // Look up user context + IG profile
   const user = await lookupUserByIg(senderId);
   const team = user ? await lookupTeam(senderId) : null;
-  const firstName = user?.name?.split(" ")[0] || null;
+  let firstName = user?.name?.split(" ")[0] || null;
+
+  // Always grab IG profile for name + username
+  let igUsername: string | null = null;
+  try {
+    const igProfile = await getUserProfile(senderId);
+    if (igProfile.name && !firstName) firstName = igProfile.name.split(" ")[0];
+    if (igProfile.username) igUsername = igProfile.username;
+    console.log(`[ditto] IG profile for ${senderId}: name=${igProfile.name}, username=${igProfile.username}`);
+  } catch (e) {
+    console.warn("[ditto] Could not fetch IG profile:", e instanceof Error ? e.message : e);
+  }
+
+  // ── Signup ref flow: user came from the form with a signup code in the ref ──
+  if (ref && ref.startsWith("signup_")) {
+    const code = ref.replace("signup_", "");
+    try {
+      const pending = await prisma.bublProfile.findFirst({
+        where: { phone: `signup_${code}` },
+      });
+      if (pending) {
+        await prisma.bublProfile.update({
+          where: { id: pending.id },
+          data: { phone: senderId, ig_id: senderId },
+        });
+        const signupName = pending.name.split(" ")[0];
+        const teamCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        try {
+          await prisma.blindDateTeam.create({
+            data: {
+              code: teamCode,
+              player1_name: pending.name,
+              player1_phone: senderId,
+              player1_gender: pending.gender || "unknown",
+              player1_ig_id: senderId,
+              player1_ready: true,
+              status: "waiting",
+            },
+          });
+        } catch { /* */ }
+        const inviteLink = `ara-malarial-poisedly.ngrok-free.dev/party/${teamCode}`;
+        const replies = [
+          `${signupName} you're locked in 🔥`,
+          `forward this to your friend so they can join your duo: ${inviteLink}`,
+        ];
+        await sendReplies(senderId, replies);
+        await saveMessage(senderId, "user", combinedText || "signed up via ref");
+        await saveMessage(senderId, "assistant", replies.join("\n"));
+        logActivity("signup_complete_ref", signupName, senderId, `code=${code}, team=${teamCode}`);
+        return;
+      }
+    } catch (e) {
+      console.warn("[ditto] Signup ref lookup failed:", e instanceof Error ? e.message : e);
+    }
+  }
 
   // ── Ref link flow: new user coming from a duo invite ──
   if (ref && !user) {
     const refTeam = await lookupTeamByRef(ref);
     const inviterName = refTeam?.player1_name?.split(" ")[0] || "your friend";
-    const signupLink = `x2byditto.com/signup?duo=${ref}`;
+    const signupLink = `ara-malarial-poisedly.ngrok-free.dev/signup?duo=${ref}`;
     const replies = [
       `yooo ${inviterName} invited you to be their duo partner`,
       `sign up here and you two are locked in for this week's match`,
@@ -347,15 +399,79 @@ async function processMessages(senderId: string) {
     return;
   }
 
-  // ── Activation flow: user says they signed up ──
+  // ── Signup code flow: user sends their code from the form ──
+  const codeMatch = combinedText.match(/\b([A-Z0-9]{6})\b/);
+  if (codeMatch) {
+    const code = codeMatch[1];
+    try {
+      const pending = await prisma.bublProfile.findFirst({
+        where: { phone: `signup_${code}` },
+      });
+      if (pending) {
+        // Link profile to this IG user
+        await prisma.bublProfile.update({
+          where: { id: pending.id },
+          data: {
+            phone: senderId, // use IG ID as identifier
+            ig_id: senderId,
+          },
+        });
+
+        const signupName = pending.name.split(" ")[0];
+        const teamCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+        // Create a team for them
+        try {
+          await prisma.blindDateTeam.create({
+            data: {
+              code: teamCode,
+              player1_name: pending.name,
+              player1_phone: senderId,
+              player1_gender: pending.gender || "unknown",
+              player1_ig_id: senderId,
+              player1_ready: true,
+              status: "waiting",
+            },
+          });
+        } catch { /* table might not exist yet */ }
+
+        const inviteLink = `ara-malarial-poisedly.ngrok-free.dev/party/${teamCode}`;
+        const replies = [
+          `${signupName} you're locked in 🔥`,
+          `now forward this to your friend so they can join your duo: ${inviteLink}`,
+        ];
+        await sendReplies(senderId, replies);
+        await saveMessage(senderId, "user", combinedText);
+        await saveMessage(senderId, "assistant", replies.join("\n"));
+        logActivity("signup_complete", signupName, senderId, `code=${code}, team=${teamCode}`);
+        return;
+      }
+    } catch (e) {
+      console.warn("[ditto] Signup code lookup failed:", e instanceof Error ? e.message : e);
+    }
+  }
+
+  // ── "I'm done" / "I signed up" flow — ask for code ──
   const lower = combinedText.toLowerCase();
+  const isDoneMsg = lower.includes("done") || lower.includes("signed up") || lower.includes("finished") || lower.includes("completed") || lower.includes("filled") || lower.includes("form");
+  if (isDoneMsg && !user) {
+    const replies = [
+      `${firstName || "yo"} nice! send me the 6-letter code from the signup page and i'll lock you in`,
+    ];
+    await sendReplies(senderId, replies);
+    await saveMessage(senderId, "user", combinedText);
+    await saveMessage(senderId, "assistant", replies.join("\n"));
+    return;
+  }
+
+  // ── Activation flow: user says they signed up (already registered) ──
   const isActivation = (lower.includes("signed up") || lower.includes("i've signed up")) && user;
   if (isActivation) {
     await markReady(senderId);
     logActivity("ready_up", firstName || undefined, senderId, `Team: ${team?.code || "none"}`);
 
     const name = firstName || "yo";
-    const lobbyLink = team ? `x2byditto.com/lobby/${team.code}` : "x2byditto.com";
+    const lobbyLink = team ? `ara-malarial-poisedly.ngrok-free.dev/lobby/${team.code}` : "ara-malarial-poisedly.ngrok-free.dev";
     const replies = [
       `${name} lets go you're locked in`,
       `now get your duo partner to sign up too so you're matched this wednesday`,
@@ -369,7 +485,7 @@ async function processMessages(senderId: string) {
   }
 
   // ── Default: LLM reply ──
-  const replies = await generateReply(senderId, combinedText, user, team);
+  const replies = await generateReply(senderId, combinedText, user, team, firstName, igUsername);
 
   logActivity("message", firstName || undefined, senderId, `"${combinedText}" -> "${replies.join(" | ")}"`);
 
@@ -381,6 +497,21 @@ async function processMessages(senderId: string) {
 export async function handleInstagramMessage(senderId: string, text: string, ref?: string) {
   const trimmed = (text || "").trim();
   if (!trimmed) return;
+
+  // Ignore messages from ourselves
+  const selfIds = new Set([
+    process.env.INSTAGRAM_ACCOUNT_ID || "",
+    process.env.FACEBOOK_PAGE_ID || "1074853689041578",
+    "17841480167268037",
+    "1074853689041578",
+  ]);
+  if (selfIds.has(senderId)) return;
+
+  // Deduplicate — same sender + same text within 10s = skip
+  const dedupeKey = `${senderId}:${trimmed}`;
+  if (recentInbound.has(dedupeKey)) return;
+  recentInbound.add(dedupeKey);
+  setTimeout(() => recentInbound.delete(dedupeKey), 10_000);
 
   console.log(`[ditto] <- ${senderId}: "${trimmed}"`);
 
@@ -407,5 +538,14 @@ export async function handleInstagramMessage(senderId: string, text: string, ref
 // ─── Agent startup ───
 
 export async function startBublAgent() {
-  console.log("[ditto] Instagram DM agent ready (webhook-driven, no polling)");
+  console.log("[ditto] Instagram DM agent ready");
+
+  // Start polling as fallback for webhooks
+  const igAccountId = process.env.INSTAGRAM_ACCOUNT_ID;
+  if (igAccountId && process.env.META_PAGE_ACCESS_TOKEN) {
+    const { startPoller } = await import("./lib/instagram/poller.js");
+    startPoller(igAccountId, handleInstagramMessage);
+  } else {
+    console.warn("[ditto] Missing INSTAGRAM_ACCOUNT_ID or META_PAGE_ACCESS_TOKEN — polling disabled");
+  }
 }

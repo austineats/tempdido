@@ -3,7 +3,7 @@
  * Uses native fetch (Node 18+). No external HTTP libraries.
  */
 
-const API_BASE = "https://graph.instagram.com/v21.0";
+const API_BASE = "https://graph.facebook.com/v21.0";
 
 function getAccessToken(): string {
   const token = process.env.META_PAGE_ACCESS_TOKEN;
