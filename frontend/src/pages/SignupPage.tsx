@@ -17,26 +17,12 @@ const HEARD_FROM_OPTIONS = ["Poster", "Instagram", "TikTok", "Friend", "Other"];
 const API = import.meta.env.VITE_API_URL || "";
 
 export function SignupPage() {
-  // Check if this is a duo invite (User B flow)
-  const duoCode = new URLSearchParams(window.location.search).get("duo") || localStorage.getItem("ditto-duo-code") || "";
-  const isUserB = !!duoCode;
-
-  // Check if there's already a pending signup — resume at done screen
-  const existing = (() => {
-    try {
-      const saved = localStorage.getItem("ditto-pending-signup");
-      if (saved) return JSON.parse(saved) as { name: string; code: string; gender: string };
-    } catch {}
-    return null;
-  })();
-
-  const [step, setStep] = useState(existing ? 4 : 0);
+  const [step, setStep] = useState(0);
 
   // basics
-  const [name, setName] = useState(existing?.name || "");
+  const [name, setName] = useState("");
   const [age, setAge] = useState("");
-  const [gender, setGender] = useState(existing?.gender || "");
-  const [email, setEmail] = useState("");
+  const [gender, setGender] = useState("");
 
   // about
   const [ethnicity, setEthnicity] = useState<string[]>([]);
@@ -58,7 +44,7 @@ export function SignupPage() {
   const [heardFrom, setHeardFrom] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [signupCode, setSignupCode] = useState(existing?.code || "");
+  const [signupCode, setSignupCode] = useState("");
 
   const toggleEthnicity = (val: string) =>
     setEthnicity(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
@@ -85,7 +71,7 @@ export function SignupPage() {
 
   // Validation per step
   const canNext = () => {
-    if (step === 0) return name.trim() && age && gender && email.includes(".edu");
+    if (step === 0) return name.trim() && age && gender;
     if (step === 1) return true; // about is optional-ish
     if (step === 2) return lookingFor && dateWho;
     return true;
@@ -106,7 +92,6 @@ export function SignupPage() {
       fd.append("phone", `signup_${code}`); // signup code as identifier
       fd.append("age", age);
       fd.append("gender", gender);
-      fd.append("email", email.trim());
       fd.append("ethnicity", JSON.stringify(ethnicity));
       fd.append("height", heightFt && heightIn ? `${heightFt}'${heightIn}"` : "");
       fd.append("year", year);
@@ -114,7 +99,6 @@ export function SignupPage() {
       fd.append("looking_for", lookingFor);
       fd.append("date_who", dateWho);
       fd.append("heard_from", heardFrom);
-      if (duoCode) fd.append("duo_code", duoCode);
 
       await fetch(`${API}/api/bubl/profile`, { method: "POST", body: fd }).catch(() => {});
     } catch {
@@ -170,20 +154,14 @@ export function SignupPage() {
               <p className="text-[#64748b] text-[8px] mb-6">let's get to know you</p>
               <div className="space-y-5">
                 <div>
-                  <label className="text-[8px] text-[#ec4899] mb-2 block">FIRST NAME *</label>
+                  <label className="text-[8px] text-[#ec4899] mb-2 block">NAME *</label>
                   <input value={name} onChange={e => setName(e.target.value)}
-                    className={inputClass} style={px} placeholder="first name only" />
+                    className={inputClass} style={px} placeholder="first name" />
                 </div>
                 <div>
                   <label className="text-[8px] text-[#ec4899] mb-2 block">AGE *</label>
                   <input value={age} onChange={e => setAge(e.target.value.replace(/\D/g, "").slice(0, 2))}
                     className={inputClass} style={px} placeholder="18" inputMode="numeric" />
-                </div>
-                <div>
-                  <label className="text-[8px] text-[#ec4899] mb-2 block">SCHOOL EMAIL *</label>
-                  <input value={email} onChange={e => setEmail(e.target.value)}
-                    className={inputClass} style={px} placeholder="you@ucr.edu" inputMode="email" />
-                  <p className="text-[#64748b] text-[6px] mt-1">.edu email to verify you're a student</p>
                 </div>
                 <div>
                   <label className="text-[8px] text-[#ec4899] mb-2 block">GENDER *</label>
@@ -213,7 +191,7 @@ export function SignupPage() {
               <p className="text-[#64748b] text-[8px] mb-6">helps us match better</p>
               <div className="space-y-5">
                 <div>
-                  <label className="text-[8px] text-[#ec4899] mb-2 block">ETHNICITY <span className="text-[#64748b]">(select all that apply)</span></label>
+                  <label className="text-[8px] text-[#ec4899] mb-2 block">ETHNICITY <span className="text-[#64748b]">(select all)</span></label>
                   <div className="flex flex-wrap gap-2">
                     {ETHNICITY_OPTIONS.map(e => (
                       <button key={e} onClick={() => toggleEthnicity(e)}
@@ -311,8 +289,8 @@ export function SignupPage() {
           {/* ═══ Step 3: Final — DM Ditto ═══ */}
           {step === 3 && (
             <div>
-              <h1 className="text-[14px] sm:text-[16px] text-white mb-1">REVIEW</h1>
-              <p className="text-[#64748b] text-[8px] mb-6">make sure everything looks good</p>
+              <h1 className="text-[14px] sm:text-[16px] text-white mb-1">ALMOST DONE</h1>
+              <p className="text-[#64748b] text-[8px] mb-6">one last thing</p>
 
               <div className="space-y-5">
                 <div>
@@ -352,109 +330,87 @@ export function SignupPage() {
                     <span className="text-white">{lookingFor || "—"}</span>
                   </div>
                 </div>
+
+                <p className="text-[#cbd5e1] text-[8px] sm:text-[9px] leading-[2] text-center">
+                  hit the button below to submit your application and DM @ditto_ucr on instagram to complete your signup
+                </p>
               </div>
+
+              {/* Submit + DM Ditto button */}
+              <button onClick={submit} disabled={submitting}
+                className="w-full mt-6 py-4 border-4 border-white bg-white text-[#111827] text-[10px] sm:text-[12px] hover:bg-gray-100 active:scale-[0.98] transition-transform disabled:opacity-50 flex items-center justify-center gap-3"
+                style={{ borderRadius: "50px" }}>
+                {/* Instagram icon */}
+                <svg width="24" height="24" viewBox="0 0 28 28" fill="none" style={{ flexShrink: 0 }}>
+                  <rect width="28" height="28" rx="6" fill="#E1306C" />
+                  <path d="M14 8.87c-2.8 0-5.13 2.3-5.13 5.13S11.2 19.13 14 19.13 19.13 16.83 19.13 14 16.8 8.87 14 8.87zm0 8.47a3.34 3.34 0 110-6.68 3.34 3.34 0 010 6.68zm5.34-8.68a1.2 1.2 0 11-2.4 0 1.2 1.2 0 012.4 0zM21.94 10.06a5.26 5.26 0 00-1.32-1.87 5.26 5.26 0 00-1.87-1.32A6.6 6.6 0 0016.56 6.5c-.87-.04-1.14-.05-3.36-.05h-.4c-2.22 0-2.49.01-3.36.05a6.6 6.6 0 00-2.19.37 5.26 5.26 0 00-1.87 1.32A5.26 5.26 0 004.06 10.06a6.6 6.6 0 00-.37 2.19c-.04.87-.05 1.14-.05 3.36v.4c0 2.22.01 2.49.05 3.36.02.76.17 1.28.37 2.19a5.26 5.26 0 001.32 1.87 5.26 5.26 0 001.87 1.32c.57.2 1.07.35 2.19.37.87.04 1.14.05 3.36.05h.4c2.22 0 2.49-.01 3.36-.05a6.6 6.6 0 002.19-.37 5.26 5.26 0 001.87-1.32 5.26 5.26 0 001.32-1.87c.2-.57.35-1.07.37-2.19.04-.87.05-1.14.05-3.36v-.4c0-2.22-.01-2.49-.05-3.36a6.6 6.6 0 00-.37-2.19z" fill="white"/>
+                </svg>
+                <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800 }}>
+                  {submitting ? "Submitting..." : "DM @ditto_ucr to Complete"}
+                </span>
+              </button>
 
               {error && <p className="text-[#f87171] text-[9px] text-center mt-3">{error}</p>}
             </div>
           )}
 
-          {/* ═══ Step 4: Done ═══ */}
+          {/* ═══ Step 4: Done — DM your code ═══ */}
           {step === 4 && (
             <div className="text-center">
-              <div className="mb-6 relative">
-                <span className="text-[60px] sm:text-[80px] animate-bounce-subtle inline-block">{isUserB ? "🎉" : "🎮"}</span>
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[200px] h-[200px] rounded-full opacity-20 pointer-events-none"
-                  style={{ background: `radial-gradient(circle, ${isUserB ? "#00e436" : "#ec4899"}, transparent 70%)` }} />
+              <h1 className="text-[14px] sm:text-[16px] text-white mb-1">YOU'RE ALMOST IN</h1>
+              <p className="text-[#64748b] text-[8px] mb-8">one last step to complete signup</p>
+
+              <div className="border-4 border-[#ffec27] bg-[#1c2444] p-6 mb-6">
+                <p className="text-[#64748b] text-[7px] mb-2">YOUR SIGNUP CODE</p>
+                <p className="text-[32px] sm:text-[40px] tracking-[0.3em] text-[#ffec27] select-all mb-3">{signupCode}</p>
+                <button onClick={() => { navigator.clipboard.writeText(signupCode); }}
+                  className="text-[#64748b] text-[8px] hover:text-[#ffec27] transition-none">
+                  [ TAP TO COPY ]
+                </button>
               </div>
 
-              {isUserB ? (
-                <>
-                  <h1 className="text-[16px] sm:text-[20px] text-white mb-2" style={{ fontFamily: "'Rubik Glitch', system-ui" }}>you're in, {name.split(" ")[0] || "player"}</h1>
-                  <p className="text-[#64748b] text-[8px] mb-6">duo complete</p>
+              <p className="text-[#cbd5e1] text-[9px] leading-[2.2] mb-6">
+                DM <span className="text-[#ec4899]">@ditto_ucr</span> on instagram<br />
+                and send your code to finish signing up
+              </p>
 
-                  <div className="border-4 border-[#00e436]/30 bg-[#1c2444] p-5 mb-6">
-                    <div className="flex items-center justify-center gap-3 mb-4">
-                      <div className="w-3 h-3 bg-[#00e436] animate-pulse" />
-                      <span className="text-[#00e436] text-[9px]">REGISTERED</span>
-                      <div className="w-3 h-3 bg-[#00e436] animate-pulse" />
-                    </div>
-                    <p className="text-[#cbd5e1] text-[10px] leading-[2.2]">
-                      you and your friend are locked in
-                    </p>
-                    <p className="text-[#64748b] text-[8px] mt-2">
-                      ditto will match your duo with another pair this wednesday
-                    </p>
-                  </div>
-
-                  <a href="/"
-                    className="w-full py-4 flex items-center justify-center border-4 border-[#00e436] bg-[#00e436] text-[#111827] hover:bg-white hover:border-white active:scale-[0.98] transition-transform"
-                    style={{ textDecoration: "none", boxShadow: "4px 4px 0 #065f46" }}>
-                    <span className="text-[11px]" style={px}>BACK TO HOME</span>
-                  </a>
-                </>
-              ) : (
-                <>
-                  <h1 className="text-[16px] sm:text-[20px] text-white mb-2" style={{ fontFamily: "'Rubik Glitch', system-ui" }}>almost there, {name.split(" ")[0] || "player"}</h1>
-                  <p className="text-[#64748b] text-[8px] mb-6">one more thing to finish</p>
-
-                  <div className="border-4 border-[#ec4899]/30 bg-[#1c2444] p-5 mb-6">
-                    <div className="flex items-center justify-center gap-3 mb-4">
-                      <div className="w-3 h-3 bg-[#ffec27] animate-pulse" />
-                      <span className="text-[#ffec27] text-[9px]">1 STEP LEFT</span>
-                      <div className="w-3 h-3 bg-[#ffec27] animate-pulse" />
-                    </div>
-                    <p className="text-[#cbd5e1] text-[10px] leading-[2.2]">
-                      DM <span className="text-[#ec4899] font-bold">@ditto_ucr</span> to finish signing up
-                    </p>
-                    <p className="text-[#64748b] text-[8px] mt-2">
-                      just say hey — ditto will register you and get you matched
-                    </p>
-                  </div>
-
-                  <a href={`https://ig.me/m/ditto_ucr?ref=signup_${signupCode}`} target="_blank" rel="noopener noreferrer"
-                    className="w-full py-4 flex items-center justify-center gap-3 bg-white hover:bg-gray-100 active:scale-[0.98] transition-transform"
-                    style={{ borderRadius: "50px", textDecoration: "none" }}>
-                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" style={{ flexShrink: 0 }}>
-                      <defs>
-                        <radialGradient id="ig-grad" cx="30%" cy="107%" r="150%">
-                          <stop offset="0%" stopColor="#fdf497"/>
-                          <stop offset="5%" stopColor="#fdf497"/>
-                          <stop offset="45%" stopColor="#fd5949"/>
-                          <stop offset="60%" stopColor="#d6249f"/>
-                          <stop offset="90%" stopColor="#285AEB"/>
-                        </radialGradient>
-                      </defs>
-                      <rect width="28" height="28" rx="7" fill="url(#ig-grad)" />
-                      <rect x="5.5" y="5.5" width="17" height="17" rx="5" stroke="white" strokeWidth="2" fill="none"/>
-                      <circle cx="14" cy="14" r="4" stroke="white" strokeWidth="2" fill="none"/>
-                      <circle cx="19.5" cy="8.5" r="1.5" fill="white"/>
-                    </svg>
-                    <span className="text-[#111827] text-[14px]" style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800 }}>
-                      Open @ditto_ucr
-                    </span>
-                  </a>
-                </>
-              )}
+              <a href={`https://ig.me/m/ditto_ucr?ref=signup_${signupCode}`} target="_blank" rel="noopener noreferrer"
+                className="w-full py-4 flex items-center justify-center gap-3 bg-white hover:bg-gray-100 active:scale-[0.98] transition-transform"
+                style={{ borderRadius: "50px", textDecoration: "none" }}>
+                <svg width="24" height="24" viewBox="0 0 28 28" fill="none" style={{ flexShrink: 0 }}>
+                  <rect width="28" height="28" rx="6" fill="#E1306C" />
+                  <path d="M14 8.87c-2.8 0-5.13 2.3-5.13 5.13S11.2 19.13 14 19.13 19.13 16.83 19.13 14 16.8 8.87 14 8.87zm0 8.47a3.34 3.34 0 110-6.68 3.34 3.34 0 010 6.68zm5.34-8.68a1.2 1.2 0 11-2.4 0 1.2 1.2 0 012.4 0zM21.94 10.06a5.26 5.26 0 00-1.32-1.87 5.26 5.26 0 00-1.87-1.32A6.6 6.6 0 0016.56 6.5c-.87-.04-1.14-.05-3.36-.05h-.4c-2.22 0-2.49.01-3.36.05a6.6 6.6 0 00-2.19.37 5.26 5.26 0 00-1.87 1.32A5.26 5.26 0 004.06 10.06a6.6 6.6 0 00-.37 2.19c-.04.87-.05 1.14-.05 3.36v.4c0 2.22.01 2.49.05 3.36.02.76.17 1.28.37 2.19a5.26 5.26 0 001.32 1.87 5.26 5.26 0 001.87 1.32c.57.2 1.07.35 2.19.37.87.04 1.14.05 3.36.05h.4c2.22 0 2.49-.01 3.36-.05a6.6 6.6 0 002.19-.37 5.26 5.26 0 001.87-1.32 5.26 5.26 0 001.32-1.87c.2-.57.35-1.07.37-2.19.04-.87.05-1.14.05-3.36v-.4c0-2.22-.01-2.49-.05-3.36a6.6 6.6 0 00-.37-2.19z" fill="white"/>
+                </svg>
+                <span className="text-[#111827] text-[14px]" style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800 }}>
+                  Open @ditto_ucr
+                </span>
+              </a>
             </div>
           )}
 
         </motion.div>
 
         {/* ─── Navigation buttons ─── */}
-        {step <= 3 && (
+        {step < 3 && (
           <div className="flex gap-3 mt-8">
-            <button onClick={() => step === 0 ? window.location.href = "/" : setStep(step - 1)}
-              className="px-5 py-3 border-4 border-[#6366f1]/40 text-[#6366f1] text-[9px] hover:border-[#6366f1] active:translate-y-[1px] transition-none">
-              BACK
-            </button>
-            <button
-              onClick={() => step === 3 ? submit() : setStep(step + 1)}
-              disabled={step === 3 ? submitting : !canNext()}
+            {step > 0 && (
+              <button onClick={() => setStep(step - 1)}
+                className="px-5 py-3 border-4 border-[#6366f1]/40 text-[#6366f1] text-[9px] hover:border-[#6366f1] active:translate-y-[1px] transition-none">
+                BACK
+              </button>
+            )}
+            <button onClick={() => setStep(step + 1)} disabled={!canNext()}
               className="flex-1 py-3 border-4 border-[#ec4899] bg-[#ec4899] text-[#111827] text-[9px] sm:text-[10px] hover:bg-white hover:border-white active:translate-x-[1px] active:translate-y-[1px] transition-none disabled:opacity-30 disabled:cursor-not-allowed"
               style={{ boxShadow: "4px 4px 0 #9d174d" }}>
-              {step === 3 ? (submitting ? "SUBMITTING..." : "NEXT >>") : step === 2 ? "REVIEW" : "NEXT >>"}
+              {step === 2 ? "REVIEW" : "NEXT >>"}
             </button>
           </div>
+        )}
+        {step === 3 && (
+          <button onClick={() => setStep(2)}
+            className="w-full mt-3 py-2 text-[#64748b] text-[8px] hover:text-[#ffec27] transition-none">
+            [ BACK ]
+          </button>
         )}
 
         {/* Step dots */}
@@ -465,13 +421,6 @@ export function SignupPage() {
             }} />
           ))}
         </div>
-
-        {step === 4 && (
-          <button onClick={() => setStep(3)}
-            className="w-full mt-4 py-2 text-[#64748b] text-[8px] hover:text-[#ffec27] transition-none">
-            [ BACK ]
-          </button>
-        )}
       </div>
     </div>
   );
