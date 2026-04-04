@@ -1,204 +1,116 @@
-import { useState, useRef } from "react";
-import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-/* eslint-disable @typescript-eslint/no-unused-vars */
+import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 
-const px = { fontFamily: "'Press Start 2P', monospace" } as const;
-
-function PixelSelect({ value, onChange, placeholder, options, className = "" }: {
-  value: string; onChange: (val: string) => void; placeholder: string;
-  options: { value: string; label: string }[]; className?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  return (
-    <div ref={ref} className={`relative ${className}`}>
-      <button type="button" onClick={() => setOpen(!open)}
-        className="w-full px-3 sm:px-4 border-4 border-[#7C3AED] bg-[#12081F] text-left text-[11px] focus:outline-none focus:border-[#FACC15] h-[48px] flex items-center justify-between" style={px}>
-        <span className={`text-[9px] sm:text-[11px] ${value ? "text-white" : "text-[#7C3AED]/40"}`}>
-          {value ? options.find(o => o.value === value)?.label || value : placeholder}
-        </span>
-        <span className="text-[#7C3AED] text-[8px]">{open ? "▲" : "▼"}</span>
-      </button>
-      {open && (
-        <div className="absolute z-50 w-full mt-1 border-4 border-[#7C3AED] bg-[#12081F] max-h-[200px] overflow-y-auto" style={{ boxShadow: "4px 4px 0 #1a6b99" }}>
-          {options.map(opt => (
-            <button key={opt.value} type="button" onClick={() => { onChange(opt.value); setOpen(false); }}
-              className={`w-full px-3 py-2.5 text-left text-[9px] sm:text-[11px] min-h-[40px] ${value === opt.value ? "bg-[#7C3AED] text-[#12081F]" : "text-white hover:bg-[#7C3AED]/20"}`} style={px}>
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+const px = { fontFamily: "'Press Start 2P', monospace" };
+const display = { fontFamily: "'Rubik Glitch', system-ui" };
+const serif = { fontFamily: "'Spencer', serif" };
 
 export function JoinPage() {
   const { code } = useParams();
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const invitedBy = searchParams.get("from") || "Someone";
+  const [redirecting, setRedirecting] = useState(false);
 
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [age, setAge] = useState("");
-  const [gender, setGender] = useState("");
-  const [school, setSchool] = useState("");
-  const [formState, setFormState] = useState<"idle" | "submitting" | "success">("idle");
-  const [error, setError] = useState("");
-
-  const fmt = (v: string) => {
-    const d = v.replace(/\D/g, "").slice(0, 10);
-    if (d.length <= 3) return d;
-    if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
-    return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
-  };
-
-  const submit = async () => {
-    setError("");
-    if (!name.trim() || !phone.trim() || !age.trim() || !gender || !school) {
-      setError("all fields required!");
-      return;
+  // Save the duo code so the signup form knows this is a referral
+  useEffect(() => {
+    if (code) {
+      localStorage.setItem("ditto-duo-code", code);
     }
-    const ageNum = parseInt(age);
-    if (isNaN(ageNum) || ageNum < 14 || ageNum > 18) { setError("x2 is currently only reserved for highschoolers."); return; }
-    setFormState("submitting");
-    const fd = new FormData();
-    fd.append("name", name.trim());
-    fd.append("phone", phone.replace(/\D/g, ""));
-    fd.append("age", age.trim());
-    fd.append("gender", gender);
-    fd.append("invited_by", invitedBy);
-    if (code) fd.append("invite_code", code);
-    fd.append("school", school);
-    try {
-      const res = await fetch("/api/blind-date/signup", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || "something went wrong"); setFormState("idle"); return; }
-      setFormState("success");
-      // Redirect to the shared lobby view after a brief moment
-      setTimeout(() => navigate(`/invite/${code}`), 1500);
-    } catch {
-      setError("connection failed — retry!");
-      setFormState("idle");
-    }
-  };
+  }, [code]);
 
-  const inputClass =
-    "w-full px-3 sm:px-4 py-3 border-4 border-[#7C3AED] bg-[#12081F] text-white text-[11px] placeholder:text-[#7C3AED]/40 focus:outline-none focus:border-[#FACC15] h-[48px]";
+  const openDitto = () => {
+    setRedirecting(true);
+    // Open IG DM with referral ref — ditto will know User B was invited by User A
+    window.location.href = `https://ig.me/m/ditto_ucr?ref=join_${code}`;
+  };
 
   return (
-    <div className="min-h-screen relative overflow-x-hidden" style={px}>
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center" style={{ ...px, background: "#111827" }}>
       {/* Background */}
-      <div className="fixed inset-0 z-0" style={{ background: "#0B0014" }} />
-      <div
-        className="fixed inset-0 z-[1] pointer-events-none opacity-[0.04]"
-        style={{ backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, #000 2px, #000 4px)" }}
-      />
-      <div
-        className="fixed inset-0 z-[1] pointer-events-none opacity-[0.03]"
-        style={{ backgroundImage: "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)", backgroundSize: "8px 8px" }}
-      />
+      <div className="fixed inset-0 z-0">
+        <div className="absolute inset-0" style={{ background: "#111827" }} />
+        <div className="absolute inset-0 opacity-[0.04]"
+          style={{ backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, #000 2px, #000 4px)" }} />
+      </div>
 
-      <div className="relative z-10 min-h-screen flex flex-col">
-        {/* Nav */}
-        <nav className="border-b-4 border-[#7C3AED] bg-[#12081F]/95">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
-            <button onClick={() => navigate("/")} className="text-[#8B5CF6] text-[14px] sm:text-[18px]">x2</button>
-            <div className="flex items-center gap-2 sm:gap-4">
-              <button onClick={() => navigate("/signin")} className="text-[#A5B4C8] text-[7px] sm:text-[9px] hover:text-[#FACC15] transition-none">
-                &gt;&gt; [ SIGN IN ]
-              </button>
-              <span className="text-[#6B7280] text-[7px] sm:text-[9px]">|</span>
-              <span className="text-[#FACC15] text-[7px] sm:text-[9px]">&lt; JOIN &gt;</span>
+      <div className="relative z-10 max-w-md w-full">
+        {/* Logo */}
+        <h1 className="text-[40px] sm:text-[56px] leading-none text-[#ec4899] mb-4" style={display}>
+          double the date
+        </h1>
+
+        <p className="text-[#cbd5e1] text-[18px] sm:text-[24px] mb-2" style={serif}>
+          you've been invited
+        </p>
+        <p className="text-[#64748b] text-[8px] sm:text-[9px] mb-8">
+          your friend wants you to be their duo partner
+        </p>
+
+        {/* Invite card */}
+        <div className="border-4 border-[#6366f1] bg-[#1c2444] p-6 mb-6"
+          style={{ boxShadow: "4px 4px 0 #6366f1, -4px -4px 0 #6366f1, 4px -4px 0 #6366f1, -4px 4px 0 #6366f1" }}>
+
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-[50px] aspect-square border-4 border-[#6366f1] bg-[#111827] flex items-center justify-center"
+                style={{ boxShadow: "2px 2px 0 #3730a3" }}>
+                <span className="text-[18px]">🧑</span>
+              </div>
+              <span className="text-[5px] text-[#6366f1]">YOUR FRIEND</span>
+              <div className="px-1.5 py-0.5 text-[4px] uppercase bg-[#6366f1] text-[#111827]">ready</div>
+            </div>
+            <span className="text-[#ffec27] text-[10px]">+</span>
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-[50px] aspect-square border-4 border-dashed border-[#ec4899] bg-[#111827] flex items-center justify-center"
+                style={{ animation: "arcade-glow 2s ease-in-out infinite" }}>
+                <span className="text-[14px] text-[#ec4899]">▶</span>
+              </div>
+              <span className="text-[5px] text-[#ec4899]">YOU</span>
+              <div className="px-1.5 py-0.5 text-[4px] uppercase bg-[#ec4899] text-[#111827]">join</div>
             </div>
           </div>
-        </nav>
 
-        {/* Main */}
-        <div className="flex-1 flex items-center justify-center px-4 sm:px-5 py-8 sm:py-12">
-          <div
-            className="w-full max-w-md p-5 sm:p-10"
-            style={{ border: "4px solid #7C3AED", background: "#12081F", boxShadow: "4px 4px 0 #1a6b99" }}
-          >
-            {formState === "success" ? (
-              <div className="text-center">
-                <div
-                  className="w-16 h-16 mx-auto mb-6 flex items-center justify-center text-[24px]"
-                  style={{ border: "4px solid #34D399", background: "#12081F" }}
-                >
-                  <span className="text-[#34D399]">&#x2714;</span>
-                </div>
-                <h2 className="text-[18px] text-[#34D399] mb-4">TEAM JOINED!</h2>
-                <p className="text-[#A5B4C8] text-[9px] leading-[2.2] mb-2">
-                  You and {invitedBy} are now teammates.
-                </p>
-                <p className="text-[#6B7280] text-[8px] leading-[2] mb-6">
-                  x2 will find your match and text you both on wednesday!
-                </p>
-                <p
-                  className="text-[#FACC15] text-[7px] uppercase"
-                  style={{ animation: "blink-pixel 1.5s step-end infinite" }}
-                >
-                  searching for your match...
-                </p>
-              </div>
-            ) : (
-              <>
-                <p className="text-[#C084FC] text-[8px] sm:text-[10px] mb-2 sm:mb-3 text-center">&lt; TEAMMATE INVITE &gt;</p>
-                <p className="text-[#7C3AED] text-[8px] sm:text-[9px] text-center mb-3 sm:mb-4 leading-[2] break-words">
-                  {invitedBy} invited you to be their teammate!
-                </p>
-                <h2 className="text-[16px] sm:text-[28px] text-center mb-6 sm:mb-8 text-[#FACC15]">
-                  Join {invitedBy}'s team.
-                </h2>
-
-                <div className="space-y-4">
-                  <input
-                    type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="&gt; name"
-                    className={inputClass} style={px}
-                  />
-                  <input
-                    type="tel" value={phone} onChange={(e) => setPhone(fmt(e.target.value))} placeholder="&gt; phone number"
-                    className={inputClass} style={px}
-                  />
-                  <input
-                    type="number" value={age} onChange={(e) => setAge(e.target.value)} placeholder="&gt; age"
-                    className={inputClass} style={px}
-                  />
-                  <PixelSelect value={gender} onChange={setGender} placeholder="&gt; gender"
-                    options={[{ value: "male", label: "Male" }, { value: "female", label: "Female" }]} />
-                  <PixelSelect value={school} onChange={setSchool} placeholder="&gt; school"
-                    options={[
-                      { value: "Portola High School", label: "Portola High School" },
-                      { value: "Irvine High School", label: "Irvine High School" },
-                      { value: "Northwood High School", label: "Northwood High School" },
-                      { value: "Woodbridge High School", label: "Woodbridge High School" },
-                      { value: "Beckman High School", label: "Beckman High School" },
-                      { value: "Crean Lutheran High School", label: "Crean Lutheran High School" },
-                      { value: "University High School", label: "University High School" },
-                    ]} />
-
-                  {error && <p className="text-[11px] text-[#8B5CF6] text-center">! {error}</p>}
-
-                  <button
-                    onClick={submit}
-                    disabled={formState === "submitting"}
-                    className="w-full py-3 sm:py-4 min-h-[44px] text-[10px] sm:text-[13px] active:translate-x-[2px] active:translate-y-[2px] disabled:opacity-50"
-                    style={{
-                      border: "4px solid #34D399",
-                      background: "#34D399",
-                      color: "#12081F",
-                      boxShadow: "4px 4px 0 #065F46",
-                    }}
-                  >
-                    {formState === "submitting" ? "LOADING..." : "> JOIN TEAM"}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          <p className="text-[#cbd5e1] text-[8px] leading-[2]">
+            join your friend's duo and get<br />matched with another pair this wednesday
+          </p>
         </div>
+
+        {/* CTA — opens IG DM with referral */}
+        <button onClick={openDitto} disabled={redirecting}
+          className="w-full py-4 flex items-center justify-center gap-3 bg-white hover:bg-gray-100 active:scale-[0.98] transition-transform disabled:opacity-50"
+          style={{ borderRadius: "50px" }}>
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" style={{ flexShrink: 0 }}>
+            <defs>
+              <radialGradient id="ig-grad-join" cx="30%" cy="107%" r="150%">
+                <stop offset="0%" stopColor="#fdf497"/>
+                <stop offset="5%" stopColor="#fdf497"/>
+                <stop offset="45%" stopColor="#fd5949"/>
+                <stop offset="60%" stopColor="#d6249f"/>
+                <stop offset="90%" stopColor="#285AEB"/>
+              </radialGradient>
+            </defs>
+            <rect width="28" height="28" rx="7" fill="url(#ig-grad-join)" />
+            <rect x="5.5" y="5.5" width="17" height="17" rx="5" stroke="white" strokeWidth="2" fill="none"/>
+            <circle cx="14" cy="14" r="4" stroke="white" strokeWidth="2" fill="none"/>
+            <circle cx="19.5" cy="8.5" r="1.5" fill="white"/>
+          </svg>
+          <span className="text-[#111827] text-[14px]" style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 800 }}>
+            {redirecting ? "Opening..." : "DM @ditto_ucr to Join"}
+          </span>
+        </button>
+
+        <p className="text-[#64748b] text-[7px] mt-4">
+          ditto will send you the signup form
+        </p>
+
+        {/* Fallback — go straight to form */}
+        <button onClick={() => navigate(`/signup?duo=${code}`)}
+          className="mt-6 text-[#6366f1] text-[8px] hover:text-[#ffec27] transition-none">
+          [ or fill out the form directly ]
+        </button>
+
+        <p className="text-[#64748b] text-[7px] mt-8">
+          2v2 double dates every wednesday
+        </p>
       </div>
     </div>
   );
