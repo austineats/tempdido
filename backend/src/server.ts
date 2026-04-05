@@ -20,6 +20,7 @@ import { bublRouter } from "./routes/bublProfiles.js";
 import { partyRouter } from "./routes/party.js";
 import { instagramWebhookRouter } from "./routes/instagramWebhook.js";
 import { adminRouter } from "./routes/admin.js";
+import { manychatRouter } from "./routes/manychat.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
@@ -47,6 +48,7 @@ app.use("/api/bubl", bublRouter);
 app.use("/api/party", partyRouter);
 app.use("/api/webhook/instagram", instagramWebhookRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/manychat", manychatRouter);
 
 // Serve frontend static files
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
