@@ -2,6 +2,12 @@ import OpenAI from "openai";
 import { prisma } from "./lib/db.js";
 
 const SITE_URL = process.env.SITE_URL || "ara-malarial-poisedly.ngrok-free.dev";
+const IG_USERNAME = process.env.IG_USERNAME || "ditto.test";
+
+/** Build an Instagram DM deep link so User B lands in the bot chat w/ ref set */
+function duoInviteLink(teamCode: string): string {
+  return `ig.me/m/${IG_USERNAME}?ref=invite_${teamCode}`;
+}
 import {
   sendText,
   sendTypingOn,
@@ -26,6 +32,19 @@ const pendingMessages = new Map<string, { texts: string[]; ref?: string }>();
 const REPLY_DELAY = 800;
 const recentInbound = new Set<string>();
 const MAX_HISTORY = 30;
+
+/** Random casual greeting so the bot doesn't sound dry */
+function signupGreeting(name: string): string {
+  const greetings = [
+    `yoo ${name}!! u made it, welcome to ditto 🤝`,
+    `ayyy ${name} what's good, you're locked in 🔥`,
+    `yooo ${name}! glad u signed up, let's get this going 💪`,
+    `${name}!! let's gooo you're officially in 🎉`,
+    `ayy welcome ${name}, u already know what it is 😤🔥`,
+    `yoo ${name} u just made it in, dubs only from here 🤞`,
+  ];
+  return greetings[Math.floor(Math.random() * greetings.length)];
+}
 
 // ─── Persistent history ───
 
@@ -392,7 +411,8 @@ async function processMessages(senderId: string) {
           const inviterName = existingTeam.player1_name.split(" ")[0];
           const partyLink = `${SITE_URL}/party/${existingTeam.code}`;
           const replies = [
-            `${signupName} u n ${inviterName} are locked in`,
+            `ayyy ${signupName}!! u n ${inviterName} are officially a duo 🔥`,
+            `now both of u ready up in the lobby n i'll find ur match`,
             `your lobby: ${partyLink}`,
           ];
           await sendReplies(senderId, replies);
@@ -424,8 +444,10 @@ async function processMessages(senderId: string) {
         const inviteLink = `${SITE_URL}/signup?duo=${teamCode}`;
         const partyLink = `${SITE_URL}/party/${teamCode}`;
         const replies = [
-          `${signupName} ur in`,
-          `send this to ur duo: ${SITE_URL}/signup?duo=${teamCode}`,
+          signupGreeting(signupName),
+          `now u need ur duo — send them this link so they can sign up too 👇`,
+          `${SITE_URL}/signup?duo=${teamCode}`,
+          `once they sign up n dm me, i'll link u both up. then ready up in ur lobby n i'll find ur match 🔥`,
           `your lobby: ${partyLink}`,
         ];
         await sendReplies(senderId, replies);
@@ -457,9 +479,11 @@ async function processMessages(senderId: string) {
 
     const signupLink = `${SITE_URL}/signup?duo=${teamCode}`;
     const replies = [
-      `yo ${inviterName} wants u as their duo`,
-      `fill this out n yall are set for wednesday`,
+      `yoo ${inviterName} added u as their duo 🤝`,
+      `here's how it works: u fill out a quick form, then u n ${inviterName} get matched w another duo for a 2v2 blind date this wednesday`,
+      `fill this out real quick 👇`,
       signupLink,
+      `once ur done come back here n i'll link u up`,
     ];
     await sendReplies(senderId, replies);
     await saveMessage(senderId, "user", combinedText);
@@ -504,7 +528,8 @@ async function processMessages(senderId: string) {
           const inviterName = existingTeam.player1_name.split(" ")[0];
           const partyLink = `${SITE_URL}/party/${existingTeam.code}`;
           const replies = [
-            `${signupName} u n ${inviterName} are locked in`,
+            `ayyy ${signupName}!! u n ${inviterName} are officially a duo 🔥`,
+            `now both of u ready up in the lobby n i'll find ur match`,
             `your lobby: ${partyLink}`,
           ];
           await sendReplies(senderId, replies);
@@ -536,8 +561,10 @@ async function processMessages(senderId: string) {
         const inviteLink = `${SITE_URL}/signup?duo=${teamCode}`;
         const partyLink = `${SITE_URL}/party/${teamCode}`;
         const replies = [
-          `${signupName} ur in`,
-          `send this to ur duo: ${SITE_URL}/signup?duo=${teamCode}`,
+          signupGreeting(signupName),
+          `now u need ur duo — send them this link so they can sign up too 👇`,
+          `${SITE_URL}/signup?duo=${teamCode}`,
+          `once they sign up n dm me, i'll link u both up. then ready up in ur lobby n i'll find ur match 🔥`,
           `your lobby: ${partyLink}`,
         ];
         await sendReplies(senderId, replies);
@@ -587,7 +614,8 @@ async function processMessages(senderId: string) {
           const inviterName = existingTeam.player1_name.split(" ")[0];
           const partyLink = `${SITE_URL}/party/${existingTeam.code}`;
           const replies = [
-            `${signupName} u n ${inviterName} are locked in`,
+            `ayyy ${signupName}!! u n ${inviterName} are officially a duo 🔥`,
+            `now both of u ready up in the lobby n i'll find ur match`,
             `your lobby: ${partyLink}`,
           ];
           await sendReplies(senderId, replies);
@@ -618,8 +646,10 @@ async function processMessages(senderId: string) {
         const inviteLink = `${SITE_URL}/signup?duo=${teamCode}`;
         const partyLink = `${SITE_URL}/party/${teamCode}`;
         const replies = [
-          `${signupName} ur in`,
-          `send this to ur duo: ${SITE_URL}/signup?duo=${teamCode}`,
+          signupGreeting(signupName),
+          `now u need ur duo — send them this link so they can sign up too 👇`,
+          `${SITE_URL}/signup?duo=${teamCode}`,
+          `once they sign up n dm me, i'll link u both up. then ready up in ur lobby n i'll find ur match 🔥`,
           `your lobby: ${partyLink}`,
         ];
         await sendReplies(senderId, replies);
@@ -635,23 +665,26 @@ async function processMessages(senderId: string) {
 
   // ── First-time user with no profile and no ref: welcome menu ──
   const history = await loadHistory(senderId);
-  if (history.length === 0 && !ref && !user) {
+  const dbHistory = await prisma.bublChatHistory.count({ where: { phone: senderId } });
+  if (dbHistory === 0 && !ref && !user) {
     await sendTypingOn(senderId);
     await sleep(800);
-    await sendText(senderId, `yoo welcome to doubles`);
+    await sendText(senderId, `yoo welcome to doubles by ditto 🤝`);
     await sleep(600);
-    await sendText(senderId, `wyd here\n\n1️⃣ sign me up\n2️⃣ what even is this`);
+    await sendText(senderId, `what brings u here\n\n1️⃣ sign me up\n2️⃣ what even is this\n3️⃣ my friend sent me a link`);
     await saveMessage(senderId, "user", combinedText);
     await saveMessage(senderId, "assistant", "welcome + menu sent");
     logActivity("welcome", firstName || undefined, senderId, "First DM, sent menu");
     return;
   }
 
-  // ── Menu responses: 1 = sign up, 2 = what is doubles ──
+  // ── Menu responses: 1 = sign up, 2 = what is doubles, 3 = friend sent link ──
   if ((lower === "1" || lower.includes("sign me up") || combinedText === "ICE_SIGNUP") && !user) {
     const replies = [
-      `aight lets get u in`,
+      `aight lets get u set up 💪`,
+      `fill this out real quick, takes like 2 min`,
       `${SITE_URL}/signup`,
+      `once ur done come back here n i'll link u up w ur duo`,
     ];
     await sendReplies(senderId, replies);
     await saveMessage(senderId, "user", combinedText);
@@ -662,8 +695,10 @@ async function processMessages(senderId: string) {
 
   if ((lower === "2" || lower.includes("what is doubles") || lower.includes("what is this") || lower.includes("what even") || combinedText === "ICE_INFO") && !user) {
     const replies = [
-      `so basically u n a friend sign up as a duo and we match u w another duo every wednesday. 2v2 blind date`,
-      `no app or anything its all thru ig dms. u down? ${SITE_URL}/signup`,
+      `so basically u n a friend sign up as a duo`,
+      `we match u w another duo every wednesday — 2v2 blind date 🔥`,
+      `no app or anything, its all thru ig dms. u down?`,
+      `1️⃣ yeah sign me up\n2️⃣ nah im good`,
     ];
     await sendReplies(senderId, replies);
     await saveMessage(senderId, "user", combinedText);
@@ -672,8 +707,35 @@ async function processMessages(senderId: string) {
     return;
   }
 
+  if ((lower === "3" || lower.includes("friend sent") || lower.includes("got a link")) && !user) {
+    const replies = [
+      `bet! ur friend should've sent u a signup link`,
+      `tap that link n fill out the form, then come back here`,
+      `if u lost the link ask them to resend it from their lobby 👀`,
+    ];
+    await sendReplies(senderId, replies);
+    await saveMessage(senderId, "user", combinedText);
+    await saveMessage(senderId, "assistant", replies.join("\n"));
+    logActivity("menu_friend_link", firstName || undefined, senderId);
+    return;
+  }
+
+  // ── Generic greeting from unknown user — show menu again ──
+  const isGreeting = lower === "hey" || lower === "hi" || lower === "hello" || lower === "yo" || lower === "sup" || lower.includes("hi ditto") || lower.includes("hey ditto");
+  if (isGreeting && !user) {
+    const replies = [
+      `yoo welcome to doubles by ditto 🤝`,
+      `what brings u here\n\n1️⃣ sign me up\n2️⃣ what even is this\n3️⃣ my friend sent me a link`,
+    ];
+    await sendReplies(senderId, replies);
+    await saveMessage(senderId, "user", combinedText);
+    await saveMessage(senderId, "assistant", replies.join("\n"));
+    logActivity("greeting_menu", firstName || undefined, senderId);
+    return;
+  }
+
   // ── "I'm done" / "I signed up" flow — ask for code ──
-  const isDoneMsg = lower.includes("done") || lower.includes("signed up") || lower.includes("finished") || lower.includes("completed") || lower.includes("filled") || lower.includes("form") || lower.includes("last step") || lower.includes("hey") || lower.includes("hi ditto");
+  const isDoneMsg = lower.includes("done") || lower.includes("signed up") || lower.includes("finished") || lower.includes("completed") || lower.includes("filled") || lower.includes("form") || lower.includes("last step");
 
   // User finished the form but not linked yet — try auto-match
   if (isDoneMsg && !user) {
@@ -722,8 +784,10 @@ async function processMessages(senderId: string) {
         } catch { /* */ }
         const partyLink = `${SITE_URL}/party/${teamCode}`;
         const replies = [
-          `${signupName} ur in`,
-          `send this to ur duo: ${SITE_URL}/signup?duo=${teamCode}`,
+          signupGreeting(signupName),
+          `now u need ur duo — send them this link so they can sign up too 👇`,
+          `${SITE_URL}/signup?duo=${teamCode}`,
+          `once they sign up n dm me, i'll link u both up. then ready up in ur lobby n i'll find ur match 🔥`,
           `your lobby: ${partyLink}`,
         ];
         await sendReplies(senderId, replies);
@@ -735,7 +799,9 @@ async function processMessages(senderId: string) {
     } catch { /* */ }
 
     const replies = [
-      `${firstName || "yo"} nice! send me the 6-letter code from the signup page and i'll lock you in`,
+      `hmm i don't see ur signup yet — try tapping the "dm ditto" button on the signup page after u finish`,
+      `or if u haven't signed up yet 👇`,
+      `${SITE_URL}/signup`,
     ];
     await sendReplies(senderId, replies);
     await saveMessage(senderId, "user", combinedText);
@@ -755,7 +821,7 @@ async function processMessages(senderId: string) {
     } catch { /* */ }
     const partyLink = `${SITE_URL}/party/${teamCode}`;
     const replies = [
-      `${signupName} ur in`,
+      signupGreeting(signupName),
       `send this to ur duo: ${SITE_URL}/signup?duo=${teamCode}`,
       `your lobby: ${partyLink}`,
     ];

@@ -8,6 +8,7 @@ import { Router } from "express";
 import multer from "multer";
 import { prisma } from "../lib/db.js";
 import { sendIMessage } from "../lib/imessage/imessageClient.js";
+import { sendText } from "../lib/instagram/instagramClient.js";
 import { clearHistory } from "../bublAgent.js";
 
 export const blindDateRouter = Router();
@@ -371,10 +372,30 @@ blindDateRouter.post("/ready", async (req, res) => {
 
     if (team) {
       const isPlayer1 = team.player1_phone === normalized;
-      await prisma.blindDateTeam.update({
+      const updatedTeam = await prisma.blindDateTeam.update({
         where: { id: team.id },
         data: isPlayer1 ? { player1_ready: true } : { player2_ready: true },
       });
+
+      // Both players readied up — DM them on Instagram
+      const bothReady = isPlayer1
+        ? updatedTeam.player1_ready && team.player2_ready
+        : team.player1_ready && updatedTeam.player2_ready;
+
+      if (bothReady && updatedTeam.status === "full") {
+        const partyMsg = (name: string) =>
+          `yooo ${name} ur whole duo is locked in 🔥🔥 both of u are ready so im finding ur match rn. stay tuned 👀`;
+
+        if (updatedTeam.player1_ig_id) {
+          sendText(updatedTeam.player1_ig_id, partyMsg(updatedTeam.player1_name))
+            .catch(e => console.warn("[BlindDate] IG DM to player1 failed:", e));
+        }
+        if (updatedTeam.player2_ig_id) {
+          sendText(updatedTeam.player2_ig_id, partyMsg(updatedTeam.player2_name || "friend"))
+            .catch(e => console.warn("[BlindDate] IG DM to player2 failed:", e));
+        }
+        console.log(`[BlindDate] Both ready — DM'd team ${updatedTeam.code}`);
+      }
     }
 
     let reply: string;

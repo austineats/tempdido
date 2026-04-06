@@ -14,6 +14,18 @@ import { prisma } from "../lib/db.js";
 export const manychatRouter = Router();
 
 const MANYCHAT_API_KEY = process.env.MANYCHAT_API_KEY || "";
+
+function signupGreeting(name: string): string {
+  const greetings = [
+    `yoo ${name}!! u made it, welcome to ditto 🤝`,
+    `ayyy ${name} what's good, you're locked in 🔥`,
+    `yooo ${name}! glad u signed up, let's get this going 💪`,
+    `${name}!! let's gooo you're officially in 🎉`,
+    `ayy welcome ${name}, u already know what it is 😤🔥`,
+    `yoo ${name} u just made it in, dubs only from here 🤞`,
+  ];
+  return greetings[Math.floor(Math.random() * greetings.length)];
+}
 const MANYCHAT_API = "https://api.manychat.com/fb";
 
 // ── Incoming message webhook from ManyChat ──
@@ -89,8 +101,8 @@ manychatRouter.post("/webhook", async (req, res) => {
       }).catch(() => {});
       const partyLink = `${SITE_URL}/party/${teamCode}`;
       response = [
-        `${name} ur in`,
-        `send this to ur duo: ${SITE_URL}/signup?duo=${teamCode}`,
+        signupGreeting(name),
+        `send this to ur duo so they can sign up: ${process.env.SITE_URL || "ara-malarial-poisedly.ngrok-free.dev"}/signup?duo=${teamCode}`,
         `ur lobby: ${partyLink}`,
       ];
     }
@@ -148,8 +160,8 @@ manychatRouter.post("/webhook", async (req, res) => {
           }).catch(() => {});
           const partyLink = `${SITE_URL}/party/${teamCode}`;
           response = [
-            `${pending.name.split(" ")[0]} ur in`,
-            `send this to ur duo: ${SITE_URL}/signup?duo=${teamCode}`,
+            signupGreeting(pending.name.split(" ")[0]),
+            `send this to ur duo so they can sign up: ${process.env.SITE_URL || "ara-malarial-poisedly.ngrok-free.dev"}/signup?duo=${teamCode}`,
             `ur lobby: ${partyLink}`,
           ];
         }
